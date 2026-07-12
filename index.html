@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Business Status Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot live" id="liveDot"></span>
+      <h1>Business Status Dashboard</h1>
+    </div>
+    <div class="topbar-actions">
+      <select id="businessSelect" class="select" aria-label="Active business"></select>
+      <button class="btn btn-primary" id="addBusinessBtn">+ Business</button>
+      <button class="btn" id="exportBtn" title="Export JSON">Export</button>
+      <button class="btn" id="importBtn" title="Import JSON">Import</button>
+      <input type="file" id="importFile" accept="application/json" hidden />
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- Overview / summary tiles -->
+    <section class="panel tiles" aria-label="Overview">
+      <div class="tile">
+        <div class="tile-label">Businesses</div>
+        <div class="tile-value" id="statBusinesses">0</div>
+        <div class="tile-foot" id="statBusinessesFoot">tracked</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Net 30 Accounts</div>
+        <div class="tile-value" id="statNet30">0</div>
+        <div class="tile-foot" id="statNet30Foot">0 approved</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Avg Credit Score</div>
+        <div class="tile-value" id="statCredit">—</div>
+        <div class="tile-foot" id="statCreditFoot">across bureaus</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Total Cash</div>
+        <div class="tile-value" id="statCash">$0</div>
+        <div class="tile-foot" id="statCashFoot">bank + cards available</div>
+      </div>
+    </section>
+
+    <!-- Left column: business status + net30 + banking + credit -->
+    <section class="panel col-main">
+      <!-- Business status card -->
+      <div class="card" id="businessCard">
+        <div class="card-head">
+          <h2>Business Status</h2>
+          <span class="pill" id="businessAge">—</span>
+        </div>
+        <div class="card-body business-body">
+          <div class="business-summary" id="businessSummary"></div>
+          <div class="checklist" id="checklist"></div>
+          <div class="checklist-add">
+            <input type="text" id="newCheckItem" placeholder="Add checklist item…" />
+            <button class="btn btn-small" id="addCheckItem">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Net 30 accounts -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Net 30 Accounts</h2>
+          <button class="btn btn-small" id="addNet30Btn">+ Vendor</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Vendor</th>
+                  <th>Status</th>
+                  <th>Credit Limit</th>
+                  <th>Balance</th>
+                  <th>Reports To</th>
+                  <th>Opened</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="net30Body"></tbody>
+            </table>
+          </div>
+          <div class="mini-legend">
+            <span class="chip chip-green">Approved</span>
+            <span class="chip chip-yellow">Pending</span>
+            <span class="chip chip-red">Denied</span>
+            <span class="chip chip-gray">Closed</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Banking -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Banking</h2>
+          <button class="btn btn-small" id="addBankBtn">+ Account</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Institution</th>
+                  <th>Account</th>
+                  <th>Type</th>
+                  <th>Balance</th>
+                  <th>Available Credit</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="bankBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Credit monitoring -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Credit Monitoring</h2>
+          <button class="btn btn-small" id="editCreditBtn">Update Scores</button>
+        </div>
+        <div class="card-body">
+          <div class="credit-grid" id="creditGrid"></div>
+          <div class="card-subhead">
+            <h3>History</h3>
+          </div>
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Bureau</th>
+                  <th>Score</th>
+                  <th>Change</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="creditHistoryBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right column: activity + reminders -->
+    <aside class="panel col-side">
+      <div class="card">
+        <div class="card-head">
+          <h2>Activity Monitor</h2>
+          <button class="btn btn-small" id="clearActivityBtn">Clear</button>
+        </div>
+        <div class="card-body">
+          <ul class="activity" id="activityList"></ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Upcoming</h2>
+          <button class="btn btn-small" id="addReminderBtn">+ Reminder</button>
+        </div>
+        <div class="card-body">
+          <ul class="reminders" id="reminderList"></ul>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Modal: add business -->
+  <div class="modal" id="modalBusiness" hidden>
+    <div class="modal-card">
+      <h2>Add Business</h2>
+      <label>Legal Name <input id="bName" type="text" placeholder="Acme LLC" /></label>
+      <label>Entity Type
+        <select id="bType">
+          <option>LLC</option>
+          <option>C-Corp</option>
+          <option>S-Corp</option>
+          <option>Sole Prop</option>
+          <option>Partnership</option>
+        </select>
+      </label>
+      <label>Industry <input id="bIndustry" type="text" placeholder="Consulting" /></label>
+      <label>EIN <input id="bEin" type="text" placeholder="12-3456789" /></label>
+      <label>Formed On <input id="bFormed" type="date" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="bSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: net 30 -->
+  <div class="modal" id="modalNet30" hidden>
+    <div class="modal-card">
+      <h2 id="net30Title">Add Net 30 Vendor</h2>
+      <label>Vendor <input id="n30Vendor" type="text" placeholder="Uline" /></label>
+      <label>Status
+        <select id="n30Status">
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="denied">Denied</option>
+          <option value="closed">Closed</option>
+        </select>
+      </label>
+      <label>Credit Limit <input id="n30Limit" type="number" step="1" placeholder="1000" /></label>
+      <label>Balance <input id="n30Balance" type="number" step="1" placeholder="0" /></label>
+      <label>Reports To
+        <div class="checkline">
+          <label class="inline"><input type="checkbox" id="n30rDB" /> D&amp;B</label>
+          <label class="inline"><input type="checkbox" id="n30rEXP" /> Experian</label>
+          <label class="inline"><input type="checkbox" id="n30rEQ" /> Equifax</label>
+        </div>
+      </label>
+      <label>Opened <input id="n30Opened" type="date" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="n30Save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: bank -->
+  <div class="modal" id="modalBank" hidden>
+    <div class="modal-card">
+      <h2 id="bankTitle">Add Bank Account</h2>
+      <label>Institution <input id="bkInst" type="text" placeholder="Chase" /></label>
+      <label>Account Nickname <input id="bkAcct" type="text" placeholder="Business Checking" /></label>
+      <label>Type
+        <select id="bkType">
+          <option value="checking">Checking</option>
+          <option value="savings">Savings</option>
+          <option value="credit">Credit Card</option>
+          <option value="loc">Line of Credit</option>
+          <option value="loan">Loan</option>
+        </select>
+      </label>
+      <label>Balance <input id="bkBalance" type="number" step="0.01" placeholder="0" /></label>
+      <label>Available Credit <input id="bkAvail" type="number" step="0.01" placeholder="0" /></label>
+      <label>Status
+        <select id="bkStatus">
+          <option value="active">Active</option>
+          <option value="pending">Pending</option>
+          <option value="frozen">Frozen</option>
+          <option value="closed">Closed</option>
+        </select>
+      </label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="bkSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: credit scores -->
+  <div class="modal" id="modalCredit" hidden>
+    <div class="modal-card">
+      <h2>Update Credit Scores</h2>
+      <label>Dun &amp; Bradstreet PAYDEX (0–100) <input id="crDB" type="number" min="0" max="100" /></label>
+      <label>Experian Intelliscore (0–100) <input id="crEXP" type="number" min="0" max="100" /></label>
+      <label>Equifax Business (0–100) <input id="crEQ" type="number" min="0" max="100" /></label>
+      <label>FICO SBSS (0–300) <input id="crFICO" type="number" min="0" max="300" /></label>
+      <label>Date <input id="crDate" type="date" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="crSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: reminder -->
+  <div class="modal" id="modalReminder" hidden>
+    <div class="modal-card">
+      <h2>Add Reminder</h2>
+      <label>Title <input id="rmTitle" type="text" placeholder="File annual report" /></label>
+      <label>Due Date <input id="rmDate" type="date" /></label>
+      <label>Category
+        <select id="rmCat">
+          <option>Filing</option>
+          <option>Payment</option>
+          <option>Renewal</option>
+          <option>Follow-up</option>
+          <option>Other</option>
+        </select>
+      </label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="rmSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
