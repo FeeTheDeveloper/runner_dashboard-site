@@ -331,13 +331,13 @@ function renderGrowthMetric(business) {
   const cur = business.monthlyRevenue;
   const prev = business.prevRevenue;
   if (typeof cur === "number" && typeof prev === "number" && prev > 0) {
-    const pct = (Math.abs((cur - prev) / prev) * 100).toFixed(1);
+    const pct = (((cur - prev) / prev) * 100).toFixed(1);
     if (cur > prev) {
       indicator.className += " growth-up";
       indicator.textContent = `▲ ${pct}% growth`;
     } else if (cur < prev) {
       indicator.className += " growth-down";
-      indicator.textContent = `▼ ${pct}%`;
+      indicator.textContent = `▼ ${Math.abs(pct)}%`;
     } else {
       indicator.className += " growth-flat";
       indicator.textContent = "— no change";
