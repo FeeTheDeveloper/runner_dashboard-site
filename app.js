@@ -288,7 +288,6 @@ function renderCreditMetric(business) {
   input.max = "850";
   input.placeholder = "300–850";
   input.value = business.creditScore ?? "";
-  input.addEventListener("click", (e) => e.stopPropagation());
   input.addEventListener("change", () =>
     updateMetric(business.id, "creditScore", input.value)
   );
@@ -331,8 +330,8 @@ function renderGrowthMetric(business) {
   indicator.className = "growth-indicator";
   const cur = business.monthlyRevenue;
   const prev = business.prevRevenue;
-  if (typeof cur === "number" && typeof prev === "number" && prev !== 0) {
-    const pct = (((cur - prev) / Math.abs(prev)) * 100).toFixed(1);
+  if (typeof cur === "number" && typeof prev === "number" && prev > 0) {
+    const pct = (Math.abs((cur - prev) / prev) * 100).toFixed(1);
     if (cur > prev) {
       indicator.className += " growth-up";
       indicator.textContent = `▲ ${pct}% growth`;
