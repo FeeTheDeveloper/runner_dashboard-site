@@ -68,10 +68,58 @@ The dashboard has two routes, switched via the header tabs (and via the URL hash
 
 An **agent badge** on the tab shows the count of high-priority recommendations; it disappears when nothing is high-priority.
 
+## Login (SMS one-time code)
+
+Access is gated to numbers listed in `authorized_users.json` at the repo root:
+
+```json
+{
+  "users": [
+    { "name": "Admin Fee", "phone": "+12144711386", "role": "admin", "greeting": "Admin Fee" },
+    { "name": "Lab",       "phone": "+19043769615", "role": "user",  "greeting": "Lab" }
+  ]
+}
+```
+
+Edit that file to add or remove users — the client roster and the backend `AUTHORIZED_USERS` array (in `server/cloudflare-worker.js` / `server/vercel-api.js`) must stay in sync.
+
+**Flow**
+1. Visitor enters their phone number on the login gate.
+2. Client normalizes to E.164 and calls the backend's `POST /otp/send`; backend generates a 6-digit code, stores its SHA-256 hash in KV with a 10-minute TTL, and hands it to Twilio to text.
+3. Visitor enters the code; client calls `POST /otp/verify`; backend HMAC-signs a session token containing name/role and returns it. Session lives 12 hours in `localStorage`.
+4. Twilio calls back into `POST /callback` after each delivery attempt; status is logged to KV for 24 hours.
+
+**Modes**
+- **Demo** (no backend configured) — the client generates the OTP locally and prints it to the browser console for testing. Anyone can bypass this via DevTools; use only for local dev.
+- **Live** — set the endpoint before `auth.js` loads:
+  ```html
+  <meta name="auth-endpoint" content="https://biz-dashboard-otp.<sub>.workers.dev">
+  ```
+  or `<script>window.AUTH_ENDPOINT = "https://…";</script>`.
+
+**Backends** — two drop-in templates in `server/`:
+- `server/cloudflare-worker.js` — Workers + KV, deploy with `wrangler`.
+- `server/vercel-api.js` — Vercel serverless + `@vercel/kv`.
+
+Both use Twilio for SMS delivery. See `server/README.md` for the deploy commands, env vars, and Twilio setup.
+
+**Personalization** — after login, the agent addresses the signed-in user by the `greeting` from the roster:
+- `+1 214-471-1386` → **"Admin Fee"** (admin role — unlocked briefings, credential-management guidance)
+- `+1 904-376-9615` → **"Lab"** (user role — lighter briefing)
+
+The Claude system prompt receives the signed-in identity and role so responses are tailored. Local-mode replies get greeted client-side.
+
+A **user chip** in the header shows the current user + a Log out button; logout clears the session and returns to the login gate.
+
 ## Files
 
-- `index.html` — layout, tiles, cards, modals, and both views
-- `styles.css` — dark dashboard theme + agent view styles
-- `app.js` — state, rendering, persistence, and the hash router
+- `index.html` — layout, tiles, cards, modals, both views, and the login gate
+- `styles.css` — dark dashboard theme + agent view + login styles
+- `app.js` — state, rendering, persistence, hash router, and login gating
+- `auth.js` — client-side SMS OTP flow (demo + prod) and session store
+- `authorized_users.json` — roster of authorized phone numbers
 - `integrations.js` — REST + MCP wrappers for Mercury Bank, My D&B, and NAV
 - `agent.js` — recommendations engine, plays library, and Claude API adapter
+- `server/cloudflare-worker.js` — Twilio-backed OTP backend (Cloudflare Worker)
+- `server/vercel-api.js` — Twilio-backed OTP backend (Vercel serverless)
+- `server/README.md` — deploy walk-throughs and env-var checklist

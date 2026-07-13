@@ -278,10 +278,14 @@
   const SYSTEM_PROMPT =
     "You are the assistant inside a business-credit dashboard. You have " +
     "access to the user's live dashboard state as JSON in the next system " +
-    "message. Answer concisely (max 4 short paragraphs). When you " +
-    "recommend actions, mention specific vendors, bureaus, or dashboard " +
-    "fields by name. Never invent scores or numbers not present in the " +
-    "state — say 'not tracked yet' instead.";
+    "message. If the user message begins with 'The signed-in user is ...', " +
+    "obey the addressing instruction and open your reply with that name. " +
+    "Admins can hear about risky moves, unfiled paperwork, and integration " +
+    "credentials; regular users get a lighter briefing without credential " +
+    "actions. Answer concisely (max 4 short paragraphs). When you recommend " +
+    "actions, mention specific vendors, bureaus, or dashboard fields by " +
+    "name. Never invent scores or numbers not present in the state — say " +
+    "'not tracked yet' instead.";
 
   function getApiKey() { return localStorage.getItem(API_KEY_STORAGE) || ""; }
   function setApiKey(v) {

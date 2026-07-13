@@ -20,6 +20,8 @@
   // ---------- State ----------
   let state = load();
   let editing = { net30Id: null, bankId: null };
+  let currentUser = null;
+  let loginPhoneCache = "";
 
   function load() {
     try {
@@ -1085,6 +1087,166 @@
   if (savedModel) {
     const sel = $("#agentModel");
     if (sel && sel.querySelector('option[value="' + savedModel + '"]')) sel.value = savedModel;
+  }
+
+  // ---------- Auth / login gate ----------
+  function isLoginMode() {
+    return !!(window.BizAuth && !window.BizAuth.endpoint());
+  }
+  function showLoginError(msg) {
+    const el = $("#loginError");
+    if (!msg) { el.hidden = true; el.textContent = ""; return; }
+    el.hidden = false;
+    el.textContent = msg;
+  }
+  function showLoginStep(step) {
+    $("#loginStep1").hidden = step !== 1;
+    $("#loginStep2").hidden = step !== 2;
+    showLoginError("");
+    setTimeout(() => {
+      const target = step === 1 ? $("#loginPhone") : $("#loginCode");
+      if (target) target.focus();
+    }, 0);
+  }
+  function updateLoginMode() {
+    const el = $("#loginMode");
+    if (!el) return;
+    if (isLoginMode()) {
+      el.textContent = "Demo mode — no backend configured. The code appears in the browser console (open DevTools).";
+      el.className = "login-mode demo";
+    } else {
+      el.textContent = "Live mode — SMS sent via " + window.BizAuth.endpoint();
+      el.className = "login-mode prod";
+    }
+  }
+  function greet(user) {
+    return "Hi " + (user && user.greeting ? user.greeting : "there") + "!";
+  }
+  function updateUserChip() {
+    const chip = $("#userChip");
+    const name = $("#userChipName");
+    if (currentUser) {
+      chip.hidden = false;
+      const roleTag = currentUser.role === "admin" ? " · admin" : "";
+      name.textContent = currentUser.greeting + roleTag;
+    } else {
+      chip.hidden = true;
+    }
+  }
+  function refreshAgentLedeForUser() {
+    const lede = $("#agentLede");
+    if (!lede) return;
+    if (currentUser) {
+      const suffix = currentUser.role === "admin"
+        ? " You have admin access — every action and integration is unlocked."
+        : " Access is read/write on this business dashboard.";
+      lede.textContent = greet(currentUser) + " I read your live dashboard and recommend the next best moves." + suffix;
+    }
+  }
+
+  async function beginLogin() {
+    $("#loginGate").hidden = false;
+    document.body.style.overflow = "hidden";
+    updateLoginMode();
+    showLoginStep(1);
+  }
+  function endLogin() {
+    $("#loginGate").hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  $("#sendCodeBtn").addEventListener("click", async () => {
+    showLoginError("");
+    const phone = $("#loginPhone").value.trim();
+    if (!phone) { $("#loginPhone").focus(); return; }
+    loginPhoneCache = phone;
+    $("#sendCodeBtn").disabled = true;
+    try {
+      const r = await window.BizAuth.sendCode(phone);
+      if (!r.ok) throw new Error(r.error || "Failed to send code");
+      $("#loginSentTo").textContent = "Code sent to " + window.BizAuth.prettyPhone(r.phone || phone) + ".";
+      showLoginStep(2);
+    } catch (e) {
+      showLoginError(e.message);
+    } finally {
+      $("#sendCodeBtn").disabled = false;
+    }
+  });
+
+  $("#loginBack").addEventListener("click", () => showLoginStep(1));
+
+  $("#resendBtn").addEventListener("click", async () => {
+    showLoginError("");
+    try {
+      const r = await window.BizAuth.sendCode(loginPhoneCache);
+      if (!r.ok) throw new Error(r.error || "Resend failed");
+      showLoginError("");
+    } catch (e) { showLoginError(e.message); }
+  });
+
+  async function submitCode() {
+    showLoginError("");
+    const code = $("#loginCode").value.trim();
+    if (!/^\d{6}$/.test(code)) { showLoginError("Enter the 6-digit code"); return; }
+    $("#verifyCodeBtn").disabled = true;
+    try {
+      const r = await window.BizAuth.verifyCode(loginPhoneCache, code);
+      if (!r.ok) throw new Error(r.error || "Verification failed");
+      currentUser = r.session;
+      log("biz", "Login: " + currentUser.name + " (" + currentUser.role + ")");
+      persist();
+      updateUserChip();
+      refreshAgentLedeForUser();
+      endLogin();
+      renderAgent();
+    } catch (e) {
+      showLoginError(e.message);
+    } finally {
+      $("#verifyCodeBtn").disabled = false;
+    }
+  }
+  $("#verifyCodeBtn").addEventListener("click", submitCode);
+  $("#loginCode").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitCode();
+  });
+  $("#loginPhone").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") $("#sendCodeBtn").click();
+  });
+
+  $("#logoutBtn").addEventListener("click", () => {
+    if (!confirm("Log out? You'll need a new SMS code to sign back in.")) return;
+    window.BizAuth.logout();
+    log("biz", "Logout: " + (currentUser ? currentUser.name : ""));
+    currentUser = null;
+    updateUserChip();
+    persist();
+    beginLogin();
+  });
+
+  // Wrap ask() so Claude gets the greeting name in its system prompt.
+  const _origAsk = window.BizAgent.ask;
+  window.BizAgent.ask = function (question, st, model) {
+    if (!currentUser) return _origAsk(question, st, model);
+    const prefixed = "The signed-in user is " + currentUser.name +
+      " (role: " + currentUser.role + "). Address them as \"" +
+      currentUser.greeting + "\" in the reply. Question: " + question;
+    return _origAsk(prefixed, st, model).then((answer) => {
+      // Ensure the greeting shows up in local-mode replies too.
+      if (model === "local" && !answer.toLowerCase().includes(currentUser.greeting.toLowerCase())) {
+        return greet(currentUser) + " " + answer;
+      }
+      return answer;
+    });
+  };
+
+  // Session restore or gate
+  const existing = window.BizAuth.session();
+  if (existing) {
+    currentUser = existing;
+    updateUserChip();
+    refreshAgentLedeForUser();
+  } else {
+    beginLogin();
   }
 
   // First-run bootstrap

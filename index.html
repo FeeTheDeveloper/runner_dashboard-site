@@ -22,8 +22,45 @@
       <button class="btn" id="exportBtn" title="Export JSON">Export</button>
       <button class="btn" id="importBtn" title="Import JSON">Import</button>
       <input type="file" id="importFile" accept="application/json" hidden />
+      <div class="user-chip" id="userChip" hidden>
+        <span class="user-chip-name" id="userChipName"></span>
+        <button class="btn btn-small" id="logoutBtn">Log out</button>
+      </div>
     </div>
   </header>
+
+  <!-- Login gate -->
+  <div class="login-gate" id="loginGate" hidden>
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="dot live"></span>
+        <h2>Sign in</h2>
+      </div>
+      <p class="login-lede" id="loginLede">SMS code sent to your authorized number. Only pre-approved numbers can access this dashboard.</p>
+
+      <div id="loginStep1">
+        <label>Phone number
+          <input id="loginPhone" type="tel" inputmode="tel" placeholder="214-471-1386" autocomplete="tel" />
+        </label>
+        <button class="btn btn-primary btn-block" id="sendCodeBtn">Send Code</button>
+      </div>
+
+      <div id="loginStep2" hidden>
+        <p class="login-sub" id="loginSentTo"></p>
+        <label>6-digit code
+          <input id="loginCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="••••••" />
+        </label>
+        <button class="btn btn-primary btn-block" id="verifyCodeBtn">Verify & Sign In</button>
+        <div class="login-actions-row">
+          <button class="btn btn-small" id="loginBack">← Change number</button>
+          <button class="btn btn-small" id="resendBtn">Resend</button>
+        </div>
+      </div>
+
+      <div class="login-error" id="loginError" hidden></div>
+      <div class="login-mode" id="loginMode"></div>
+    </div>
+  </div>
 
   <main class="grid" id="viewDashboard">
     <!-- Overview / summary tiles -->
@@ -437,6 +474,7 @@
     </div>
   </div>
 
+  <script src="auth.js"></script>
   <script src="integrations.js"></script>
   <script src="agent.js"></script>
   <script src="app.js"></script>

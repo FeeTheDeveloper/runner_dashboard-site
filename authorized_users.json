@@ -1,0 +1,21 @@
+{
+  "$comment": "Source of truth for dashboard access. Edit this file to add or remove users. Phones must be E.164 (leading +, country code, no punctuation).",
+  "session_ttl_hours": 12,
+  "otp_ttl_minutes": 10,
+  "users": [
+    {
+      "name": "Admin Fee",
+      "phone": "+12144711386",
+      "role": "admin",
+      "greeting": "Admin Fee",
+      "always_authorized": true
+    },
+    {
+      "name": "Lab",
+      "phone": "+19043769615",
+      "role": "user",
+      "greeting": "Lab",
+      "always_authorized": false
+    }
+  ]
+}
