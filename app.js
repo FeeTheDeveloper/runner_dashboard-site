@@ -64,13 +64,15 @@
   }
 
   // ---------- Business helpers ----------
-  function seedBusiness(name, type, industry, ein, formed) {
+  function seedBusiness(name, type, industry, ein, formed, duns, dunsStatus) {
     return {
       id: uid(),
       name,
       type,
       industry,
       ein,
+      duns: duns || "",
+      dunsStatus: dunsStatus || "none",
       formed: formed || null,
       createdAt: Date.now(),
       checklist: DEFAULT_CHECKLIST.map((label) => ({
@@ -84,8 +86,33 @@
         history: [],
       },
       reminders: [],
+      integrations: {
+        mercury: { status: "not_started", accountId: "", notes: "", lastChecked: null, lastResult: null },
+        dnb:     { status: "not_started", accountId: "", notes: "", lastChecked: null, lastResult: null },
+        nav:     { status: "not_started", accountId: "", notes: "", lastChecked: null, lastResult: null },
+      },
     };
   }
+
+  // Ensure businesses loaded from earlier state have the newer fields.
+  function migrateBusiness(b) {
+    if (!("duns" in b)) b.duns = "";
+    if (!("dunsStatus" in b)) b.dunsStatus = "none";
+    if (!b.integrations) {
+      b.integrations = {
+        mercury: { status: "not_started", accountId: "", notes: "", lastChecked: null, lastResult: null },
+        dnb:     { status: "not_started", accountId: "", notes: "", lastChecked: null, lastResult: null },
+        nav:     { status: "not_started", accountId: "", notes: "", lastChecked: null, lastResult: null },
+      };
+    }
+    ["mercury", "dnb", "nav"].forEach((k) => {
+      if (!b.integrations[k]) {
+        b.integrations[k] = { status: "not_started", accountId: "", notes: "", lastChecked: null, lastResult: null };
+      }
+    });
+    return b;
+  }
+  state.businesses.forEach(migrateBusiness);
 
   // ---------- Render ----------
   const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -95,6 +122,7 @@
     renderBusinessSelect();
     renderTiles();
     renderBusinessCard();
+    renderIntegrations();
     renderNet30();
     renderBank();
     renderCredit();
@@ -168,11 +196,21 @@
       ? Math.max(0, daysBetween(new Date(b.formed).getTime(), Date.now())) + " days old"
       : "Formation date not set";
 
+    const dunsLabel = {
+      none: "not requested",
+      requested: "requested",
+      pending: "pending review",
+      issued: "issued",
+    }[b.dunsStatus] || b.dunsStatus;
+    const dunsValue = b.duns
+      ? b.duns + "  (" + dunsLabel + ")"
+      : "— (" + dunsLabel + ")";
     const items = [
       ["Legal Name", b.name],
       ["Entity Type", b.type || "—"],
       ["Industry", b.industry || "—"],
       ["EIN", b.ein || "—"],
+      ["DUNS", dunsValue],
       ["Formed", fmtDate(b.formed)],
     ];
     items.forEach(([k, v]) => {
@@ -221,8 +259,125 @@
       closed:   "chip chip-gray",
       active:   "chip chip-green",
       frozen:   "chip chip-yellow",
+      verified: "chip chip-green",
+      in_review: "chip chip-yellow",
+      submitted: "chip chip-blue",
+      not_started: "chip chip-gray",
+      declined: "chip chip-red",
     }[status] || "chip chip-gray";
   }
+
+  const INTG_STATUS_LABEL = {
+    not_started: "not started",
+    submitted:   "submitted",
+    in_review:   "in review",
+    verified:    "verified",
+    declined:    "declined",
+  };
+
+  function renderIntegrations() {
+    const grid = $("#integrationGrid");
+    grid.innerHTML = "";
+    const b = activeBusiness();
+    const providers = (window.BizIntegrations && window.BizIntegrations.PROVIDERS) || [];
+    if (!b) {
+      grid.innerHTML = '<div class="empty-state">Add a business to link integrations.</div>';
+      return;
+    }
+    providers.forEach((p) => {
+      const state_ = b.integrations[p.id] || { status: "not_started" };
+      const el = document.createElement("div");
+      el.className = "integration-item";
+      el.innerHTML =
+        '<div class="row1">' +
+          '<div><div class="name"></div><div class="kind"></div></div>' +
+          '<span class="' + statusChipClass(state_.status) + ' status"></span>' +
+        '</div>' +
+        '<div class="desc"></div>' +
+        '<div class="actions">' +
+          '<button class="btn btn-small" data-edit>Update</button>' +
+          '<button class="btn btn-small" data-probe>Probe status</button>' +
+        '</div>' +
+        '<div class="meta"></div>';
+      el.querySelector(".name").textContent = p.name;
+      el.querySelector(".kind").textContent = p.kind;
+      el.querySelector(".status").textContent = INTG_STATUS_LABEL[state_.status] || state_.status;
+      el.querySelector(".desc").textContent = p.description;
+      const acct = state_.accountId ? "ID " + state_.accountId : "no account linked";
+      const last = state_.lastChecked ? " · checked " + fmtTime(state_.lastChecked) : "";
+      el.querySelector(".meta").textContent = acct + last;
+      el.querySelector("[data-edit]").addEventListener("click", () => openIntegrationModal(p));
+      el.querySelector("[data-probe]").addEventListener("click", () => probeIntegration(p));
+      grid.appendChild(el);
+    });
+  }
+
+  let editingIntg = null;
+  function openIntegrationModal(provider) {
+    const b = activeBusiness();
+    if (!b) return;
+    const s = b.integrations[provider.id];
+    editingIntg = provider.id;
+    $("#intgTitle").textContent = "Update " + provider.name;
+    $("#intgAccountId").value = s.accountId || "";
+    $("#intgStatus").value = s.status || "not_started";
+    $("#intgToken").value = (window.BizIntegrations && window.BizIntegrations.getToken(provider.id)) || "";
+    $("#intgNotes").value = s.notes || "";
+    openModal("modalIntegration");
+  }
+  $("#intgSave").addEventListener("click", () => {
+    const b = activeBusiness();
+    if (!b || !editingIntg) return;
+    const s = b.integrations[editingIntg];
+    const prevStatus = s.status;
+    s.accountId = $("#intgAccountId").value.trim();
+    s.status = $("#intgStatus").value;
+    s.notes = $("#intgNotes").value.trim();
+    const token = $("#intgToken").value.trim();
+    if (window.BizIntegrations) window.BizIntegrations.setToken(editingIntg, token || null);
+    if (editingIntg === "dnb" && s.accountId) {
+      b.duns = s.accountId;
+      if (s.status === "verified") b.dunsStatus = "issued";
+      else if (s.status === "in_review" || s.status === "submitted") b.dunsStatus = "pending";
+    }
+    const providerName = { mercury: "Mercury Bank", dnb: "My D&B", nav: "NAV" }[editingIntg];
+    log(editingIntg === "mercury" ? "bank" : "credit",
+      "Updated " + providerName + " status " + prevStatus + " → " + s.status);
+    editingIntg = null;
+    closeModal("modalIntegration");
+    persist();
+  });
+
+  async function probeIntegration(provider) {
+    const b = activeBusiness();
+    if (!b) return;
+    const s = b.integrations[provider.id];
+    log("task", "Probing " + provider.name + " …");
+    persist();
+    let res;
+    try {
+      res = await window.BizIntegrations.probeStatus(provider.id, s);
+    } catch (e) {
+      res = { ok: false, error: String(e), source: "none", at: Date.now() };
+    }
+    s.lastChecked = Date.now();
+    s.lastResult = { ok: !!res.ok, source: res.source, message: res.error || "ok" };
+    if (res.ok) {
+      s.status = "verified";
+      log(provider.id === "mercury" ? "bank" : "credit",
+        provider.name + " probe ok via " + res.source);
+    } else {
+      log("task", provider.name + " probe: " + (res.error || "unknown"));
+    }
+    persist();
+  }
+
+  $("#refreshIntegrationsBtn").addEventListener("click", async () => {
+    const b = activeBusiness();
+    if (!b) return;
+    const providers = window.BizIntegrations.PROVIDERS;
+    for (const p of providers) await probeIntegration(p);
+  });
 
   function reportsToLabel(r) {
     const parts = [];
@@ -472,6 +627,8 @@
     $("#bType").value = "LLC";
     $("#bIndustry").value = "";
     $("#bEin").value = "";
+    $("#bDuns").value = "";
+    $("#bDunsStatus").value = "none";
     $("#bFormed").value = "";
     openModal("modalBusiness");
     setTimeout(() => $("#bName").focus(), 0);
@@ -479,16 +636,25 @@
   $("#bSave").addEventListener("click", () => {
     const name = $("#bName").value.trim();
     if (!name) { $("#bName").focus(); return; }
+    const duns = $("#bDuns").value.trim();
+    const dunsStatus = $("#bDunsStatus").value;
     const b = seedBusiness(
       name,
       $("#bType").value,
       $("#bIndustry").value.trim(),
       $("#bEin").value.trim(),
       $("#bFormed").value || null,
+      duns,
+      dunsStatus,
     );
+    if (duns) {
+      b.integrations.dnb.accountId = duns;
+      if (dunsStatus === "issued") b.integrations.dnb.status = "verified";
+      else if (dunsStatus === "requested" || dunsStatus === "pending") b.integrations.dnb.status = "in_review";
+    }
     state.businesses.push(b);
     state.activeId = b.id;
-    log("biz", "Added business " + b.name);
+    log("biz", "Added business " + b.name + (duns ? " (DUNS " + duns + ")" : ""));
     closeModal("modalBusiness");
     persist();
   });

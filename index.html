@@ -64,6 +64,21 @@
         </div>
       </div>
 
+      <!-- Integrations: Mercury / D&B / NAV -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Integrations</h2>
+          <button class="btn btn-small" id="refreshIntegrationsBtn" title="Poll integration status">Refresh</button>
+        </div>
+        <div class="card-body">
+          <div class="integration-grid" id="integrationGrid"></div>
+          <p class="integration-note" id="integrationNote">
+            Live API/MCP calls require credentials configured in <code>integrations.js</code>.
+            The Mercury MCP connector must be authorized in your Claude connector settings before its tools become callable.
+          </p>
+        </div>
+      </div>
+
       <!-- Net 30 accounts -->
       <div class="card">
         <div class="card-head">
@@ -191,6 +206,15 @@
       </label>
       <label>Industry <input id="bIndustry" type="text" placeholder="Consulting" /></label>
       <label>EIN <input id="bEin" type="text" placeholder="12-3456789" /></label>
+      <label>DUNS Number <input id="bDuns" type="text" placeholder="00-000-0000" pattern="[0-9\-\s]*" /></label>
+      <label>DUNS Status
+        <select id="bDunsStatus">
+          <option value="none">Not requested</option>
+          <option value="requested">Requested</option>
+          <option value="pending">Pending review</option>
+          <option value="issued">Issued</option>
+        </select>
+      </label>
       <label>Formed On <input id="bFormed" type="date" /></label>
       <div class="modal-actions">
         <button class="btn" data-close>Cancel</button>
@@ -299,6 +323,30 @@
     </div>
   </div>
 
+  <!-- Modal: integration status -->
+  <div class="modal" id="modalIntegration" hidden>
+    <div class="modal-card">
+      <h2 id="intgTitle">Update Integration</h2>
+      <label>Provider Account ID / Handle <input id="intgAccountId" type="text" placeholder="e.g. mercury customer id, DUNS, NAV email" /></label>
+      <label>Sign-up Status
+        <select id="intgStatus">
+          <option value="not_started">Not started</option>
+          <option value="submitted">Submitted</option>
+          <option value="in_review">In review</option>
+          <option value="verified">Verified / active</option>
+          <option value="declined">Declined</option>
+        </select>
+      </label>
+      <label>API Key / Token (stored locally only) <input id="intgToken" type="password" placeholder="Optional — enables API/MCP calls" /></label>
+      <label>Notes <input id="intgNotes" type="text" placeholder="Optional" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="intgSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="integrations.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
