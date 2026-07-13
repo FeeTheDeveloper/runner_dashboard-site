@@ -54,9 +54,24 @@ python3 -m http.server 8000
 4. Add reminders for upcoming filings or payments.
 5. Watch the activity feed on the right for a running log of what changed.
 
+## Agent Assistant
+
+The dashboard has two routes, switched via the header tabs (and via the URL hash, `#dashboard` / `#agent`).
+
+**Agent route (`#agent`)** contains three panels:
+
+1. **Recommended Next Steps** — a rules engine reads the active business's state and emits ranked recommendations (high / med / low). Missing DUNS, no active checking account, fewer than 3 approved Net 30 tradelines, no bureau-reporting vendors, pending vendor follow-ups, overdue reminders, PAYDEX push targets, checklist gaps — each has its own rule with a specific "why". Recommendations with a **link** open the relevant application page; recommendations with a **focus** jump to the dashboard and scroll/open the exact card.
+2. **Best Plays** — the credit-building playbook grouped by tier: 1 Foundation (EIN, DUNS, address, phone, bank, website), 2 Starter (Uline, Grainger, Quill, Summa, Crown), 3 Store (Amazon, Home Depot, Lowe's), 4 Fleet (WEX, Fuelman), 5 Bank (first business card, LOC/SBA), 6 Scale (monitoring, PAYDEX 80, FICO SBSS 160+). Each play has a `done` predicate that checks the live state — completed plays show as struck-through.
+3. **Ask the Agent** — a chat panel that answers questions grounded in the current dashboard state:
+   - **Local mode** (default, no network) — a keyword-routed engine that answers "what should I do next?", "which vendors are pending?", "where's my PAYDEX?", etc. by reading state.
+   - **Claude mode** — direct browser call to the Anthropic Messages API. Set your API key in the modal; it's stored in `localStorage` only and sent with the `anthropic-dangerous-direct-browser-access` header. Available models: Claude Haiku 4.5, Sonnet 5, Opus 4.8. The dashboard state is passed to the model as a system-block JSON snapshot so replies stay grounded.
+
+An **agent badge** on the tab shows the count of high-priority recommendations; it disappears when nothing is high-priority.
+
 ## Files
 
-- `index.html` — layout, tiles, cards, and modals
-- `styles.css` — dark dashboard theme
-- `app.js` — all state, rendering, and persistence logic
+- `index.html` — layout, tiles, cards, modals, and both views
+- `styles.css` — dark dashboard theme + agent view styles
+- `app.js` — state, rendering, persistence, and the hash router
 - `integrations.js` — REST + MCP wrappers for Mercury Bank, My D&B, and NAV
+- `agent.js` — recommendations engine, plays library, and Claude API adapter

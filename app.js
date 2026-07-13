@@ -128,6 +128,8 @@
     renderCredit();
     renderReminders();
     renderActivity();
+    renderAgent();
+    renderAgentBadge();
   }
 
   function renderBusinessSelect() {
@@ -890,11 +892,208 @@
     }
   });
 
+  // ---------- Agent view ----------
+  function renderAgentBadge() {
+    const badge = $("#agentBadge");
+    if (!badge) return;
+    const recs = (window.BizAgent && window.BizAgent.recommendations(state)) || [];
+    const highs = recs.filter((r) => r.priority === "high").length;
+    if (highs) {
+      badge.hidden = false;
+      badge.textContent = String(highs);
+    } else {
+      badge.hidden = true;
+    }
+  }
+
+  function renderAgent() {
+    if (!window.BizAgent) return;
+    const recs = window.BizAgent.recommendations(state);
+    const list = $("#recList");
+    list.innerHTML = "";
+    $("#agentCountPill").textContent = String(recs.length);
+    if (recs.length === 0) {
+      list.innerHTML = '<li class="empty-state">All clear.</li>';
+    } else {
+      recs.forEach((r) => {
+        const li = document.createElement("li");
+        li.innerHTML =
+          '<span class="rec-priority ' + r.priority + '"></span>' +
+          '<div class="rec-body">' +
+            '<div class="rec-title"></div>' +
+            '<div class="rec-reason"></div>' +
+            '<div class="rec-action-wrap"></div>' +
+          '</div>';
+        li.querySelector(".rec-priority").textContent = r.priority;
+        li.querySelector(".rec-title").textContent = r.title;
+        li.querySelector(".rec-reason").textContent = r.reason;
+        if (r.action) {
+          const wrap = li.querySelector(".rec-action-wrap");
+          if (r.action.link) {
+            const a = document.createElement("a");
+            a.href = r.action.link;
+            a.target = "_blank";
+            a.rel = "noopener";
+            a.className = "rec-action";
+            a.textContent = r.action.label + " ↗";
+            wrap.appendChild(a);
+          } else if (r.action.focus) {
+            const btn = document.createElement("button");
+            btn.className = "rec-action";
+            btn.textContent = r.action.label + " →";
+            btn.addEventListener("click", () => {
+              setRoute("dashboard");
+              setTimeout(() => {
+                const target = document.getElementById(r.action.focus);
+                if (target) {
+                  target.scrollIntoView({ behavior: "smooth", block: "center" });
+                  if (target.tagName === "BUTTON") target.click();
+                }
+              }, 60);
+            });
+            wrap.appendChild(btn);
+          }
+        }
+        list.appendChild(li);
+      });
+    }
+
+    const tier = ($("#playFilter") && $("#playFilter").value) || "all";
+    const plays = window.BizAgent.playsForBusiness(state, tier);
+    const plist = $("#playList");
+    plist.innerHTML = "";
+    if (plays.length === 0) {
+      plist.innerHTML = '<li class="empty-state">No plays in this tier.</li>';
+    } else {
+      plays.forEach((p) => {
+        const li = document.createElement("li");
+        if (p.done) li.classList.add("done");
+        li.innerHTML =
+          '<span class="play-tier"></span>' +
+          '<div class="rec-body">' +
+            '<div class="play-title"></div>' +
+            '<div class="play-desc"></div>' +
+          '</div>';
+        li.querySelector(".play-tier").textContent = p.tierLabel;
+        li.querySelector(".play-title").textContent = (p.done ? "✓ " : "") + p.title;
+        li.querySelector(".play-desc").textContent = p.desc;
+        plist.appendChild(li);
+      });
+    }
+
+    // Chat replay
+    renderChat();
+  }
+
+  function renderChat() {
+    const win = $("#chatWindow");
+    if (!win) return;
+    const msgs = window.BizAgent.loadChat();
+    win.innerHTML = "";
+    if (msgs.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "chat-msg system";
+      empty.textContent = "Try: “what should I do next?”, “which vendors are pending?”, “where's my PAYDEX?”";
+      win.appendChild(empty);
+    }
+    msgs.forEach((m) => {
+      const el = document.createElement("div");
+      el.className = "chat-msg " + m.role;
+      el.textContent = m.text;
+      win.appendChild(el);
+    });
+    win.scrollTop = win.scrollHeight;
+
+    const pill = $("#askProviderPill");
+    if (pill) {
+      const model = window.BizAgent.getSavedModel();
+      pill.textContent = model === "local" ? "local"
+        : (model === "claude-haiku-4-5-20251001" ? "haiku 4.5" : model.replace(/^claude-/, ""));
+    }
+  }
+
+  // ---------- Router ----------
+  function currentRoute() {
+    const raw = (location.hash || "").replace(/^#/, "");
+    return raw === "agent" ? "agent" : "dashboard";
+  }
+  function setRoute(name) {
+    location.hash = name;
+  }
+  function applyRoute() {
+    const route = currentRoute();
+    document.getElementById("viewDashboard").hidden = route !== "dashboard";
+    document.getElementById("viewAgent").hidden = route !== "agent";
+    document.querySelectorAll(".tab").forEach((t) => {
+      t.classList.toggle("active", t.dataset.route === route);
+    });
+    if (route === "agent") renderAgent();
+  }
+  window.addEventListener("hashchange", applyRoute);
+
+  // Agent controls
+  $("#agentRefreshBtn").addEventListener("click", renderAgent);
+  $("#playFilter").addEventListener("change", renderAgent);
+
+  $("#agentModel").addEventListener("change", (e) => {
+    window.BizAgent.setSavedModel(e.target.value);
+    renderChat();
+  });
+  $("#agentKeyBtn").addEventListener("click", () => {
+    $("#apiKeyInput").value = window.BizAgent.getApiKey();
+    openModal("modalApiKey");
+  });
+  $("#apiKeySave").addEventListener("click", () => {
+    const v = $("#apiKeyInput").value.trim();
+    window.BizAgent.setApiKey(v || null);
+    closeModal("modalApiKey");
+    log("task", v ? "Set Claude API key" : "Cleared Claude API key");
+    persist();
+  });
+
+  async function sendChat() {
+    const input = $("#chatInput");
+    const q = input.value.trim();
+    if (!q) return;
+    input.value = "";
+    const msgs = window.BizAgent.loadChat();
+    msgs.push({ role: "user", text: q });
+    window.BizAgent.saveChat(msgs);
+    renderChat();
+    const thinking = document.createElement("div");
+    thinking.className = "chat-msg system";
+    thinking.textContent = "thinking…";
+    $("#chatWindow").appendChild(thinking);
+    try {
+      const model = window.BizAgent.getSavedModel();
+      const answer = await window.BizAgent.ask(q, state, model);
+      msgs.push({ role: "agent", text: answer });
+      log("task", "Agent replied to: " + q.slice(0, 60));
+    } catch (e) {
+      msgs.push({ role: "agent", text: "Error: " + e.message });
+    }
+    window.BizAgent.saveChat(msgs);
+    renderChat();
+  }
+  $("#chatSendBtn").addEventListener("click", sendChat);
+  $("#chatInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendChat();
+  });
+
+  // Restore model selection
+  const savedModel = window.BizAgent.getSavedModel();
+  if (savedModel) {
+    const sel = $("#agentModel");
+    if (sel && sel.querySelector('option[value="' + savedModel + '"]')) sel.value = savedModel;
+  }
+
   // First-run bootstrap
   if (state.businesses.length === 0) {
     log("biz", "Dashboard initialized. Click + Business to begin.");
   }
   if (!state.activeId && state.businesses[0]) state.activeId = state.businesses[0].id;
+  if (!location.hash) location.hash = "dashboard";
   save();
+  applyRoute();
   render();
 })();

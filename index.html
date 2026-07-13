@@ -12,6 +12,10 @@
       <span class="dot live" id="liveDot"></span>
       <h1>Business Status Dashboard</h1>
     </div>
+    <nav class="tabs" role="tablist">
+      <a class="tab" data-route="dashboard" href="#dashboard" role="tab">Dashboard</a>
+      <a class="tab" data-route="agent" href="#agent" role="tab">Agent <span class="tab-badge" id="agentBadge" hidden>0</span></a>
+    </nav>
     <div class="topbar-actions">
       <select id="businessSelect" class="select" aria-label="Active business"></select>
       <button class="btn btn-primary" id="addBusinessBtn">+ Business</button>
@@ -21,7 +25,7 @@
     </div>
   </header>
 
-  <main class="grid">
+  <main class="grid" id="viewDashboard">
     <!-- Overview / summary tiles -->
     <section class="panel tiles" aria-label="Overview">
       <div class="tile">
@@ -190,6 +194,93 @@
     </aside>
   </main>
 
+  <!-- Agent view -->
+  <main class="agent-view" id="viewAgent" hidden>
+    <section class="agent-hero">
+      <div>
+        <h2>Agent Assistant</h2>
+        <p class="agent-lede" id="agentLede">Reads your live dashboard state and recommends the next best moves.</p>
+      </div>
+      <div class="agent-hero-actions">
+        <select id="agentModel" class="select" aria-label="Model">
+          <option value="local">Local heuristics (no API)</option>
+          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+          <option value="claude-sonnet-5">Claude Sonnet 5</option>
+          <option value="claude-opus-4-8">Claude Opus 4.8</option>
+        </select>
+        <button class="btn" id="agentKeyBtn">Set API Key</button>
+        <button class="btn btn-primary" id="agentRefreshBtn">Re-scan</button>
+      </div>
+    </section>
+
+    <section class="agent-grid">
+      <div class="card">
+        <div class="card-head">
+          <h2>Recommended Next Steps</h2>
+          <span class="pill" id="agentCountPill">0</span>
+        </div>
+        <div class="card-body">
+          <ul class="rec-list" id="recList"></ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Best Plays</h2>
+          <select id="playFilter" class="select play-filter" aria-label="Play tier">
+            <option value="all">All tiers</option>
+            <option value="foundation">1 · Foundation</option>
+            <option value="starter">2 · Starter Credit</option>
+            <option value="store">3 · Store Credit</option>
+            <option value="fleet">4 · Fleet Cards</option>
+            <option value="bank">5 · Bank Credit</option>
+            <option value="scale">6 · Scale</option>
+          </select>
+        </div>
+        <div class="card-body">
+          <ul class="play-list" id="playList"></ul>
+        </div>
+      </div>
+
+      <div class="card ask-card">
+        <div class="card-head">
+          <h2>Ask the Agent</h2>
+          <span class="pill" id="askProviderPill">local</span>
+        </div>
+        <div class="card-body">
+          <div class="chat" id="chatWindow"></div>
+          <div class="chat-input">
+            <input type="text" id="chatInput" placeholder="Ask: what should I do next? / when is my earliest Net 30 vendor?" />
+            <button class="btn btn-primary" id="chatSendBtn">Send</button>
+          </div>
+          <p class="chat-hint">
+            Local mode answers from a rules engine that reads your dashboard.
+            Claude models require an API key stored in this browser only.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: API key -->
+  <div class="modal" id="modalApiKey" hidden>
+    <div class="modal-card">
+      <h2>Claude API Key</h2>
+      <label>API Key (stored in this browser only)
+        <input id="apiKeyInput" type="password" placeholder="sk-ant-..." />
+      </label>
+      <p class="chat-hint">
+        Used only for direct browser calls to the Anthropic API. Sent with
+        the <code>anthropic-dangerous-direct-browser-access</code> header.
+        Clear the field to remove it.
+      </p>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="apiKeySave">Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: add business -->
   <div class="modal" id="modalBusiness" hidden>
     <div class="modal-card">
@@ -347,6 +438,7 @@
   </div>
 
   <script src="integrations.js"></script>
+  <script src="agent.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
