@@ -1,6 +1,6 @@
 # Business Status Dashboard
 
-A static, single-page dashboard for tracking multiple businesses and their key growth activities: **Net 30 accounts**, **banking**, and **credit monitoring**. No build step is required, and the repo is configured for direct deployment to Cloudflare Pages.
+A static, single-page dashboard for tracking multiple businesses and their key growth activities: **Net 30 accounts**, **banking**, and **credit monitoring**. No build step is required, and the repo is configured for direct deployment to Cloudflare Workers (static assets).
 
 ## Features
 
@@ -37,37 +37,29 @@ npm run cf:dev
 4. Add reminders for upcoming filings or payments.
 5. Watch the activity feed on the right for a running log of what changed.
 
-## Cloudflare Pages deployment
+## Cloudflare deployment
 
-This repo includes a checked-in Cloudflare Pages configuration in `wrangler.jsonc`.
+This repo is configured as a Cloudflare Worker serving static assets from `public/` (see `wrangler.jsonc`).
 
-### Recommended Pages settings
+### Automatic deploys (GitHub Actions)
 
-- **Framework preset**: `None`
-- **Production branch**: `main`
-- **Build command**: `exit 0`
-- **Build output directory**: `.`
+Every push to `main` runs `.github/workflows/deploy.yml`:
+
+- **With repo secrets** `CLOUDFLARE_API_TOKEN` (permission: *Workers Scripts — Edit*) and `CLOUDFLARE_ACCOUNT_ID` set, the site deploys straight to your Cloudflare account.
+- **Without secrets**, wrangler deploys to a temporary preview account (`wrangler deploy --temporary`) that stays live for 60 minutes. The deploy output — including the one-time **claim URL** that moves the deployment into your own Cloudflare account permanently — is uploaded as the `deployment-urls` workflow artifact rather than printed in the public log.
 
 ### Deploy from the CLI
 
 ```sh
 npm install
+npx wrangler login
 npm run cf:deploy
 ```
 
-### Deploy from the Cloudflare dashboard
-
-1. Connect this GitHub repository in **Workers & Pages**.
-2. Leave the framework preset as **None**.
-3. Set the build command to `exit 0`.
-4. Set the build output directory to `.`.
-5. Deploy the `main` branch.
-
-Because this is a static site with a top-level `index.html`, Cloudflare Pages can serve it directly from the repository root.
-
 ## Files
 
-- `index.html` — layout, tiles, cards, and modals
-- `styles.css` — dark dashboard theme
-- `app.js` — all state, rendering, and persistence logic
-- `wrangler.jsonc` — Cloudflare Pages configuration for repo-based deployments
+- `public/index.html` — layout, tiles, cards, and modals
+- `public/styles.css` — dark dashboard theme
+- `public/app.js` — all state, rendering, and persistence logic
+- `wrangler.jsonc` — Cloudflare Workers static assets configuration
+- `.github/workflows/deploy.yml` — CI deployment workflow

@@ -2,11 +2,11 @@
   "name": "runner-dashboard-site",
   "private": true,
   "version": "1.0.0",
-  "description": "Static dashboard site configured for Cloudflare Pages.",
+  "description": "Static dashboard site configured for Cloudflare Workers static assets.",
   "scripts": {
-    "dev": "http-server -p 8000 .",
-    "cf:dev": "wrangler pages dev .",
-    "cf:deploy": "wrangler pages deploy"
+    "dev": "http-server -p 8000 public",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy"
   },
   "devDependencies": {
     "http-server": "^14.1.1",
