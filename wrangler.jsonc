@@ -1,8 +1,17 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "runner-dashboard-site",
+  "main": "src/worker.js",
   "compatibility_date": "2026-07-16",
   "assets": {
-    "directory": "./public"
-  }
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "runner-dashboard-db",
+      "database_id": "e6c35059-574a-4178-a04e-ce3201ca6a09"
+    }
+  ]
 }

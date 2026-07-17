@@ -346,7 +346,7 @@
       el.querySelector(".score").textContent = typeof val === "number" ? val : "—";
       const bar = el.querySelector(".credit-bar > span");
       bar.style.width = pct + "%";
-      bar.classList.add(band);
+      if (band) bar.classList.add(band);
       el.querySelector(".foot").textContent = "Max " + r.max;
       grid.appendChild(el);
     });
@@ -445,6 +445,49 @@
   function persist() {
     save();
     render();
+    scheduleSync();
+  }
+
+  // ---------- Server sync ----------
+  let currentUser = null;   // null → local-only mode (no backend or signed out)
+  let syncTimer = null;
+
+  function setSyncStatus(cls, title) {
+    const el = $("#syncStatus");
+    el.className = "sync-dot " + cls;
+    el.title = title;
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(path, {
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      ...options,
+    });
+    let body = null;
+    try { body = await res.json(); } catch { /* non-JSON error page */ }
+    return { ok: res.ok, status: res.status, body };
+  }
+
+  function scheduleSync() {
+    if (!currentUser) return;
+    setSyncStatus("pending", "Saving…");
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(pushState, 800);
+  }
+
+  async function pushState() {
+    if (!currentUser) return;
+    try {
+      const res = await api("/api/state", {
+        method: "PUT",
+        body: JSON.stringify({ state }),
+      });
+      if (res.ok) setSyncStatus("synced", "Saved to your account");
+      else setSyncStatus("error", (res.body && res.body.error) || "Save failed");
+    } catch {
+      setSyncStatus("error", "Offline — changes kept in this browser");
+    }
   }
 
   // ---------- Modals ----------
@@ -724,11 +767,141 @@
     }
   });
 
-  // First-run bootstrap
-  if (state.businesses.length === 0) {
-    log("biz", "Dashboard initialized. Click + Business to begin.");
+  // ---------- Auth ----------
+  let authMode = "login"; // or "register"
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    const isRegister = mode === "register";
+    $("#authTitle").textContent = isRegister ? "Create Account" : "Sign In";
+    $("#authSub").textContent = isRegister
+      ? "Your dashboard will be saved to your account."
+      : "Access your saved dashboard from any device.";
+    $("#authNameWrap").hidden = !isRegister;
+    $("#authSubmit").textContent = isRegister ? "Create Account" : "Sign In";
+    $("#authSwitchText").textContent = isRegister ? "Already have an account?" : "New here?";
+    $("#authSwitchBtn").textContent = isRegister ? "Sign in instead" : "Create an account";
+    $("#authPassword").autocomplete = isRegister ? "new-password" : "current-password";
+    $("#authError").hidden = true;
   }
-  if (!state.activeId && state.businesses[0]) state.activeId = state.businesses[0].id;
-  save();
-  render();
+
+  $("#authSwitchBtn").addEventListener("click", () => setAuthMode(authMode === "login" ? "register" : "login"));
+
+  $("#authForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errEl = $("#authError");
+    errEl.hidden = true;
+    $("#authSubmit").disabled = true;
+    try {
+      const payload = {
+        email: $("#authEmail").value,
+        password: $("#authPassword").value,
+      };
+      if (authMode === "register") payload.name = $("#authName").value;
+      const res = await api("/api/" + (authMode === "register" ? "register" : "login"), {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        errEl.textContent = (res.body && res.body.error) || "Something went wrong. Try again.";
+        errEl.hidden = false;
+        return;
+      }
+      await enterSignedIn(res.body.user, authMode === "register");
+    } catch {
+      errEl.textContent = "Could not reach the server. Try again.";
+      errEl.hidden = false;
+    } finally {
+      $("#authSubmit").disabled = false;
+    }
+  });
+
+  async function enterSignedIn(user, isNewAccount) {
+    currentUser = user;
+    $("#authOverlay").hidden = true;
+    $("#profileBtn").hidden = false;
+    $("#logoutBtn").hidden = false;
+    $("#profileBtn").textContent = user.name ? user.name : "Profile";
+
+    if (!isNewAccount) {
+      try {
+        const res = await api("/api/state");
+        if (res.ok && res.body && res.body.state) {
+          state = res.body.state;
+        }
+      } catch { /* keep local state */ }
+    }
+    // Seed the account with whatever exists locally (first sign-in migration),
+    // and establish the sync baseline either way.
+    log("biz", "Signed in as " + (user.name || user.email));
+    persist();
+  }
+
+  $("#logoutBtn").addEventListener("click", async () => {
+    if (!confirm("Sign out? Your data stays saved to your account.")) return;
+    try { await api("/api/logout", { method: "POST" }); } catch { /* best effort */ }
+    localStorage.removeItem(STORAGE_KEY);
+    location.reload();
+  });
+
+  // Profile modal
+  $("#profileBtn").addEventListener("click", () => {
+    if (!currentUser) return;
+    $("#pfName").value = currentUser.name || "";
+    $("#pfEmail").value = currentUser.email || "";
+    $("#pfPassword").value = "";
+    $("#pfError").hidden = true;
+    openModal("modalProfile");
+  });
+  $("#pfSave").addEventListener("click", async () => {
+    const errEl = $("#pfError");
+    errEl.hidden = true;
+    const payload = { name: $("#pfName").value, email: $("#pfEmail").value };
+    if ($("#pfPassword").value) payload.newPassword = $("#pfPassword").value;
+    try {
+      const res = await api("/api/profile", { method: "PUT", body: JSON.stringify(payload) });
+      if (!res.ok) {
+        errEl.textContent = (res.body && res.body.error) || "Update failed.";
+        errEl.hidden = false;
+        return;
+      }
+      currentUser = res.body.user;
+      $("#profileBtn").textContent = currentUser.name || "Profile";
+      log("biz", "Updated profile");
+      closeModal("modalProfile");
+      persist();
+    } catch {
+      errEl.textContent = "Could not reach the server. Try again.";
+      errEl.hidden = false;
+    }
+  });
+
+  // ---------- Boot ----------
+  function bootstrapLocal() {
+    if (state.businesses.length === 0) {
+      log("biz", "Dashboard initialized. Click + Business to begin.");
+    }
+    if (!state.activeId && state.businesses[0]) state.activeId = state.businesses[0].id;
+    save();
+    render();
+  }
+
+  (async function boot() {
+    bootstrapLocal();
+    try {
+      const res = await api("/api/me");
+      if (res.ok) {
+        await enterSignedIn(res.body.user, false);
+      } else if (res.status === 401) {
+        setAuthMode("login");
+        $("#authOverlay").hidden = false;
+        setSyncStatus("local", "Sign in to save your data");
+      } else {
+        setSyncStatus("error", "Server unavailable — running locally");
+      }
+    } catch {
+      // No backend (e.g. plain static preview): stay in local-only mode.
+      setSyncStatus("local", "Local mode — data stays in this browser");
+    }
+  })();
 })();
