@@ -18,8 +18,30 @@
       <button class="btn" id="exportBtn" title="Export JSON">Export</button>
       <button class="btn" id="importBtn" title="Import JSON">Import</button>
       <input type="file" id="importFile" accept="application/json" hidden />
+      <span class="sync-dot" id="syncStatus" title="Sync status"></span>
+      <button class="btn" id="profileBtn" hidden>Profile</button>
+      <button class="btn" id="logoutBtn" hidden>Sign Out</button>
     </div>
   </header>
+
+  <!-- Auth overlay -->
+  <div class="auth-overlay" id="authOverlay" hidden>
+    <div class="auth-card">
+      <h2 id="authTitle">Sign In</h2>
+      <p class="auth-sub" id="authSub">Access your saved dashboard from any device.</p>
+      <form id="authForm">
+        <label id="authNameWrap" hidden>Name <input id="authName" type="text" autocomplete="name" placeholder="Your name" /></label>
+        <label>Email <input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com" /></label>
+        <label>Password <input id="authPassword" type="password" autocomplete="current-password" required minlength="8" placeholder="••••••••" /></label>
+        <div class="auth-error" id="authError" hidden></div>
+        <button class="btn btn-primary btn-block" id="authSubmit" type="submit">Sign In</button>
+      </form>
+      <div class="auth-switch">
+        <span id="authSwitchText">New here?</span>
+        <button class="btn-link" id="authSwitchBtn" type="button">Create an account</button>
+      </div>
+    </div>
+  </div>
 
   <main class="grid">
     <!-- Overview / summary tiles -->
@@ -273,6 +295,21 @@
       <div class="modal-actions">
         <button class="btn" data-close>Cancel</button>
         <button class="btn btn-primary" id="crSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: profile -->
+  <div class="modal" id="modalProfile" hidden>
+    <div class="modal-card">
+      <h2>Your Profile</h2>
+      <label>Name <input id="pfName" type="text" autocomplete="name" /></label>
+      <label>Email <input id="pfEmail" type="email" autocomplete="email" /></label>
+      <label>New Password <input id="pfPassword" type="password" autocomplete="new-password" placeholder="Leave blank to keep current" /></label>
+      <div class="auth-error" id="pfError" hidden></div>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="pfSave">Save</button>
       </div>
     </div>
   </div>

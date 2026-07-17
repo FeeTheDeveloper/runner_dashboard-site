@@ -25,16 +25,14 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
-            npx wrangler deploy
-          else
-            # No API token configured: deploy to a temporary preview account.
-            # The output contains a one-time claim URL, so keep it out of the
-            # public build log and upload it as a short-lived artifact instead.
-            npx wrangler deploy --temporary > deploy-output.txt 2>&1 || { cat deploy-output.txt; exit 1; }
-            grep -iv claim deploy-output.txt || true
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository secrets are required: the app binds to the runner-dashboard-db D1 database in your Cloudflare account, which temporary preview deploys cannot access. Add both under Settings -> Secrets and variables -> Actions (token permissions: Workers Scripts - Edit, D1 - Edit)."
+            exit 1
+          fi
+          npx wrangler deploy 2>&1 | tee deploy-output.txt
 
-            URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy-output.txt | head -1)
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy-output.txt | head -1)
+          if [ -n "$URL" ]; then
             echo "Deployed to: $URL"
             for i in 1 2 3 4 5; do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || true)
@@ -44,12 +42,3 @@ jobs:
             done
             [ "$STATUS" = "200" ]
           fi
-
-      - name: Upload deployment info (contains one-time claim URL)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deployment-urls
-          path: deploy-output.txt
-          retention-days: 1
-          if-no-files-found: ignore
