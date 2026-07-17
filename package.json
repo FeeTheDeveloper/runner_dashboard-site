@@ -1,0 +1,15 @@
+{
+  "name": "runner-dashboard-site",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Static dashboard site configured for Cloudflare Pages.",
+  "scripts": {
+    "dev": "http-server -p 8000 .",
+    "cf:dev": "wrangler pages dev .",
+    "cf:deploy": "wrangler pages deploy"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "wrangler": "^4.26.0"
+  }
+}

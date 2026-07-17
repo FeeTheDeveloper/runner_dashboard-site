@@ -1,6 +1,6 @@
 # Business Status Dashboard
 
-A static, single-page dashboard for tracking multiple businesses and their key growth activities: **Net 30 accounts**, **banking**, and **credit monitoring**. No build step, no server — open `index.html` in a browser or host on GitHub Pages.
+A static, single-page dashboard for tracking multiple businesses and their key growth activities: **Net 30 accounts**, **banking**, and **credit monitoring**. No build step is required, and the repo is configured for direct deployment to Cloudflare Pages.
 
 ## Features
 
@@ -15,13 +15,20 @@ A static, single-page dashboard for tracking multiple businesses and their key g
 - **Persistence & live sync** — state lives in `localStorage` under the `business-dashboard-v1` key; multiple tabs stay in sync via the `storage` event.
 - **Export / Import** — one-click JSON backup and restore.
 
-## Usage
+## Local development
 
-Open `index.html` directly, or serve the folder statically:
+Install dependencies and serve the site locally:
 
 ```sh
-python3 -m http.server 8000
-# then open http://localhost:8000
+npm install
+npm run dev
+# then open http://127.0.0.1:8000
+```
+
+You can also preview the site with Cloudflare Pages locally:
+
+```sh
+npm run cf:dev
 ```
 
 1. Click **+ Business** and fill in the details.
@@ -30,8 +37,37 @@ python3 -m http.server 8000
 4. Add reminders for upcoming filings or payments.
 5. Watch the activity feed on the right for a running log of what changed.
 
+## Cloudflare Pages deployment
+
+This repo includes a checked-in Cloudflare Pages configuration in `wrangler.jsonc`.
+
+### Recommended Pages settings
+
+- **Framework preset**: `None`
+- **Production branch**: `main`
+- **Build command**: `exit 0`
+- **Build output directory**: `.`
+
+### Deploy from the CLI
+
+```sh
+npm install
+npm run cf:deploy
+```
+
+### Deploy from the Cloudflare dashboard
+
+1. Connect this GitHub repository in **Workers & Pages**.
+2. Leave the framework preset as **None**.
+3. Set the build command to `exit 0`.
+4. Set the build output directory to `.`.
+5. Deploy the `main` branch.
+
+Because this is a static site with a top-level `index.html`, Cloudflare Pages can serve it directly from the repository root.
+
 ## Files
 
 - `index.html` — layout, tiles, cards, and modals
 - `styles.css` — dark dashboard theme
 - `app.js` — all state, rendering, and persistence logic
+- `wrangler.jsonc` — Cloudflare Pages configuration for repo-based deployments
