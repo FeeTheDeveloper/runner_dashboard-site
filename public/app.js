@@ -62,7 +62,7 @@
 
   // ---------- State ----------
   let state = load();
-  let editing = { net30Id: null, bankId: null, platformKey: null, sbaCertId: null };
+  let editing = { net30Id: null, bankId: null, platformKey: null, sbaCertId: null, apiConfigId: null };
 
   function load() {
     try {
@@ -77,8 +77,10 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }
   function uid() {
+    const arr = new Uint32Array(2);
+    crypto.getRandomValues(arr);
     return "id-" + Math.floor(performance.now() * 1000).toString(36) +
-      "-" + Math.floor(Math.random() * 1e6).toString(36);
+      "-" + arr[0].toString(36) + arr[1].toString(36);
   }
   function activeBusiness() {
     return state.businesses.find((b) => b.id === state.activeId) || null;
@@ -549,10 +551,12 @@
     }[status] || "chip chip-gray";
   }
 
+  const MASK_VISIBLE_CHARS = 4;
+
   function maskApiKey(key) {
     if (!key) return "—";
-    if (key.length <= 4) return "••••";
-    return "••••" + key.slice(-4);
+    if (key.length <= MASK_VISIBLE_CHARS) return "••••";
+    return "••••" + key.slice(-MASK_VISIBLE_CHARS);
   }
 
   function renderApiConfigs() {
@@ -1078,12 +1082,11 @@
   });
 
   // API Configurations
-  let editingApiConfigId = null;
   $("#addApiConfigBtn").addEventListener("click", () => openApiConfigModal(null));
   function openApiConfigModal(existing) {
     const b = activeBusiness();
     if (!b) { alert("Add a business first."); return; }
-    editingApiConfigId = existing ? existing.id : null;
+    editing.apiConfigId = existing ? existing.id : null;
     $("#apiConfigTitle").textContent = existing ? "Edit API Configuration" : "Add API Configuration";
     $("#apiName").value    = existing ? existing.name        : "";
     $("#apiService").value = existing ? (existing.service || "other") : "samgov";
@@ -1108,8 +1111,8 @@
       status:      $("#apiStatus").value,
       notes:       $("#apiNotes").value.trim(),
     };
-    if (editingApiConfigId) {
-      const target = b.apiConfigs.find((c) => c.id === editingApiConfigId);
+    if (editing.apiConfigId) {
+      const target = b.apiConfigs.find((c) => c.id === editing.apiConfigId);
       if (target) {
         Object.assign(target, payload);
         log("api", 'Updated API config "' + name + '"');
