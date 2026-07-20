@@ -80,7 +80,7 @@
     const arr = new Uint32Array(2);
     crypto.getRandomValues(arr);
     return "id-" + Math.floor(performance.now() * 1000).toString(36) +
-      "-" + arr[0].toString(36) + arr[1].toString(36);
+      "-" + arr[0].toString(36) + "-" + arr[1].toString(36);
   }
   function activeBusiness() {
     return state.businesses.find((b) => b.id === state.activeId) || null;
