@@ -349,3 +349,28 @@ label.inline input[type="checkbox"] { width: auto; accent-color: var(--accent); 
   border: 1px dashed var(--border);
   border-radius: 8px;
 }
+
+/* Profile list (Online & Gov Profiles card) */
+.profile-list { display: flex; flex-direction: column; gap: 8px; }
+.profile-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.profile-item .profile-name { min-width: 120px; font-weight: 600; font-size: 13px; }
+.profile-item .profile-id   { flex: 1; color: var(--muted); font-size: 12px; font-family: monospace; word-break: break-all; }
+.profile-item .profile-url  { font-size: 11px; color: var(--accent-2); }
+
+.card-subhead-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 14px 0 8px;
+}
+.card-subhead-row h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+
+.muted-label { color: var(--muted); font-size: 11px; }
