@@ -64,6 +64,42 @@
         </div>
       </div>
 
+      <!-- Online & Government Profiles -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Online &amp; Government Profiles</h2>
+        </div>
+        <div class="card-body">
+          <div class="card-subhead"><h3>Platform Accounts</h3></div>
+          <div class="profile-list" id="platformList"></div>
+
+          <div class="card-subhead-row">
+            <h3>SAM.gov Registration</h3>
+            <button class="btn btn-small" id="editSamBtn">Edit SAM.gov</button>
+          </div>
+          <div id="samInfo"></div>
+
+          <div class="card-subhead-row">
+            <h3>SBA Certifications</h3>
+            <button class="btn btn-small" id="addSbaCertBtn">+ Cert</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Certification</th>
+                  <th>Status</th>
+                  <th>Cert Date</th>
+                  <th>Expires</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="sbaCertBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- Net 30 accounts -->
       <div class="card">
         <div class="card-head">
@@ -117,6 +153,31 @@
                 </tr>
               </thead>
               <tbody id="bankBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- API Configurations -->
+      <div class="card">
+        <div class="card-head">
+          <h2>API Configurations</h2>
+          <button class="btn btn-small" id="addApiConfigBtn">+ Config</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Service</th>
+                  <th>Key (masked)</th>
+                  <th>Environment</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="apiConfigBody"></tbody>
             </table>
           </div>
         </div>
@@ -295,6 +356,117 @@
       <div class="modal-actions">
         <button class="btn" data-close>Cancel</button>
         <button class="btn btn-primary" id="rmSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: platform account (Stripe / Yelp / Google Business) -->
+  <div class="modal" id="modalPlatformAcct" hidden>
+    <div class="modal-card">
+      <h2 id="platModalTitle">Edit Platform Account</h2>
+      <label id="platIdLabel">Account ID
+        <input id="platId" type="text" placeholder="" />
+      </label>
+      <label id="platUrlLabel">URL
+        <input id="platUrl" type="url" placeholder="https://" />
+      </label>
+      <label>Status
+        <select id="platStatus"></select>
+      </label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="platSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: SAM.gov -->
+  <div class="modal" id="modalSam" hidden>
+    <div class="modal-card">
+      <h2>SAM.gov Registration</h2>
+      <label>Unique Entity ID (UEI) <input id="samUei" type="text" placeholder="ABC123DEF456" maxlength="12" /></label>
+      <label>CAGE Code <span class="muted-label">(optional)</span> <input id="samCage" type="text" placeholder="1ABC2" maxlength="5" /></label>
+      <label>Status
+        <select id="samStatus">
+          <option value="not_registered">Not Registered</option>
+          <option value="pending">Pending</option>
+          <option value="active">Active</option>
+          <option value="expired">Expired</option>
+        </select>
+      </label>
+      <label>Expiration Date <input id="samExpiration" type="date" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="samSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: SBA certification -->
+  <div class="modal" id="modalSbaCert" hidden>
+    <div class="modal-card">
+      <h2 id="sbaCertTitle">Add SBA Certification</h2>
+      <label>Certification Type
+        <select id="sbaCertType">
+          <option value="8a">8(a) Business Development</option>
+          <option value="hubzone">HUBZone</option>
+          <option value="wosb">WOSB (Women-Owned Small Business)</option>
+          <option value="edwosb">EDWOSB (Economically Disadvantaged WOSB)</option>
+          <option value="vosb">VOSB (Veteran-Owned Small Business)</option>
+          <option value="sdvosb">SDVOSB (Service-Disabled Veteran-Owned)</option>
+          <option value="dbe">DBE (Disadvantaged Business Enterprise)</option>
+          <option value="sdb">SDB (Small Disadvantaged Business)</option>
+        </select>
+      </label>
+      <label>Status
+        <select id="sbaCertStatus">
+          <option value="pending">Pending</option>
+          <option value="active">Active</option>
+          <option value="expired">Expired</option>
+          <option value="denied">Denied</option>
+        </select>
+      </label>
+      <label>Certification Date <input id="sbaCertDate" type="date" /></label>
+      <label>Expiration Date <input id="sbaCertExpiry" type="date" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="sbaCertSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: API configuration -->
+  <div class="modal" id="modalApiConfig" hidden>
+    <div class="modal-card">
+      <h2 id="apiConfigTitle">Add API Configuration</h2>
+      <label>Name <input id="apiName" type="text" placeholder="SAM.gov API Key" /></label>
+      <label>Service
+        <select id="apiService">
+          <option value="samgov">SAM.gov</option>
+          <option value="stripe">Stripe</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>API Key / Token <input id="apiKey" type="text" placeholder="Paste key here" autocomplete="off" /></label>
+      <label>Environment
+        <select id="apiEnv">
+          <option value="production">Production</option>
+          <option value="sandbox">Sandbox</option>
+          <option value="test">Test</option>
+        </select>
+      </label>
+      <label>Status
+        <select id="apiStatus">
+          <option value="not_configured">Not Configured</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="expired">Expired</option>
+        </select>
+      </label>
+      <label>Notes <input id="apiNotes" type="text" placeholder="Optional notes" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="apiConfigSave">Save</button>
       </div>
     </div>
   </div>

@@ -17,9 +17,52 @@
     "State filings current",
   ];
 
+  const PLATFORM_CONFIG = {
+    stripe: {
+      title: "Stripe Account",
+      idLabel: "Account ID",
+      idPlaceholder: "acct_1234567890",
+      statusOptions: [
+        { value: "not_setup",  label: "Not Set Up" },
+        { value: "pending",    label: "Pending" },
+        { value: "active",     label: "Active" },
+        { value: "suspended",  label: "Suspended" },
+      ],
+      hasUrl: false,
+    },
+    yelp: {
+      title: "Yelp Business Listing",
+      idLabel: "Business ID / Alias",
+      idPlaceholder: "my-business-cityname",
+      statusOptions: [
+        { value: "not_listed", label: "Not Listed" },
+        { value: "pending",    label: "Pending" },
+        { value: "listed",     label: "Listed" },
+        { value: "claimed",    label: "Claimed & Verified" },
+      ],
+      hasUrl: true,
+      urlLabel: "Yelp URL",
+      urlPlaceholder: "https://www.yelp.com/biz/...",
+    },
+    google: {
+      title: "Google Business Profile",
+      idLabel: "Place ID",
+      idPlaceholder: "ChIJ...",
+      statusOptions: [
+        { value: "not_listed",  label: "Not Listed" },
+        { value: "pending",     label: "Pending Verification" },
+        { value: "unverified",  label: "Unverified" },
+        { value: "verified",    label: "Verified" },
+      ],
+      hasUrl: true,
+      urlLabel: "Profile URL",
+      urlPlaceholder: "https://business.google.com/...",
+    },
+  };
+
   // ---------- State ----------
   let state = load();
-  let editing = { net30Id: null, bankId: null };
+  let editing = { net30Id: null, bankId: null, platformKey: null, sbaCertId: null, apiConfigId: null };
 
   function load() {
     try {
@@ -34,8 +77,10 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }
   function uid() {
+    const arr = new Uint32Array(2);
+    crypto.getRandomValues(arr);
     return "id-" + Math.floor(performance.now() * 1000).toString(36) +
-      "-" + Math.floor(Math.random() * 1e6).toString(36);
+      "-" + arr[0].toString(36) + "-" + arr[1].toString(36);
   }
   function activeBusiness() {
     return state.businesses.find((b) => b.id === state.activeId) || null;
@@ -84,6 +129,19 @@
         history: [],
       },
       reminders: [],
+      platforms: {
+        stripe: { id: "", url: "", status: "not_setup" },
+        yelp:   { id: "", url: "", status: "not_listed" },
+        google: { id: "", url: "", status: "not_listed" },
+      },
+      gov: {
+        sam: { uei: "", cageCode: "", status: "not_registered", expirationDate: null },
+        sbaCerts: [],
+      },
+      apiConfigs: [
+        { id: uid(), name: "SAM.gov API Key",       service: "samgov", apiKey: "", environment: "production", status: "not_configured", notes: "" },
+        { id: uid(), name: "Stripe Secret Key",     service: "stripe", apiKey: "", environment: "test",       status: "not_configured", notes: "" },
+      ],
     };
   }
 
@@ -95,8 +153,10 @@
     renderBusinessSelect();
     renderTiles();
     renderBusinessCard();
+    renderProfilesCard();
     renderNet30();
     renderBank();
+    renderApiConfigs();
     renderCredit();
     renderReminders();
     renderActivity();
@@ -213,6 +273,169 @@
     });
   }
 
+  function platformStatusLabel(status) {
+    return {
+      not_setup:       "Not Set Up",
+      not_listed:      "Not Listed",
+      not_registered:  "Not Registered",
+      not_configured:  "Not Configured",
+      active:          "Active",
+      verified:        "Verified",
+      listed:          "Listed",
+      claimed:         "Claimed",
+      pending:         "Pending",
+      unverified:      "Unverified",
+      suspended:       "Suspended",
+      expired:         "Expired",
+      denied:          "Denied",
+      inactive:        "Inactive",
+    }[status] || status || "—";
+  }
+
+  function platformStatusChipClass(status) {
+    return {
+      active:         "chip chip-green",
+      verified:       "chip chip-green",
+      listed:         "chip chip-green",
+      claimed:        "chip chip-green",
+      pending:        "chip chip-yellow",
+      unverified:     "chip chip-yellow",
+      suspended:      "chip chip-red",
+      expired:        "chip chip-red",
+      denied:         "chip chip-red",
+    }[status] || "chip chip-gray";
+  }
+
+  function certTypeLabel(type) {
+    return {
+      "8a":     "8(a) Business Dev",
+      hubzone:  "HUBZone",
+      wosb:     "WOSB",
+      edwosb:   "EDWOSB",
+      vosb:     "VOSB",
+      sdvosb:   "SDVOSB",
+      dbe:      "DBE",
+      sdb:      "SDB",
+    }[type] || type;
+  }
+
+  function renderProfilesCard() {
+    const b = activeBusiness();
+    const platformList = $("#platformList");
+    const samInfo      = $("#samInfo");
+    const certBody     = $("#sbaCertBody");
+
+    platformList.innerHTML = "";
+    samInfo.innerHTML      = "";
+    certBody.innerHTML     = "";
+
+    if (!b) {
+      platformList.innerHTML = '<div class="empty-state">Add a business to manage profiles.</div>';
+      samInfo.innerHTML      = '<div class="empty-state">—</div>';
+      certBody.innerHTML     = '<tr><td class="empty" colspan="5">—</td></tr>';
+      return;
+    }
+
+    // Ensure backward-compat defaults
+    if (!b.platforms) {
+      b.platforms = {
+        stripe: { id: "", url: "", status: "not_setup" },
+        yelp:   { id: "", url: "", status: "not_listed" },
+        google: { id: "", url: "", status: "not_listed" },
+      };
+    }
+    if (!b.gov) {
+      b.gov = {
+        sam: { uei: "", cageCode: "", status: "not_registered", expirationDate: null },
+        sbaCerts: [],
+      };
+    }
+
+    // --- Platform Accounts ---
+    [
+      { key: "stripe", name: "Stripe" },
+      { key: "yelp",   name: "Yelp" },
+      { key: "google", name: "Google Business" },
+    ].forEach(({ key, name }) => {
+      const p = b.platforms[key] || { id: "", url: "", status: "" };
+      const row = document.createElement("div");
+      row.className = "profile-item";
+
+      const nameEl = document.createElement("div");
+      nameEl.className = "profile-name";
+      nameEl.textContent = name;
+
+      const idEl = document.createElement("div");
+      idEl.className = "profile-id";
+      idEl.textContent = p.id || "—";
+
+      const chip = document.createElement("span");
+      chip.className = platformStatusChipClass(p.status);
+      chip.textContent = platformStatusLabel(p.status);
+
+      const editBtn = document.createElement("button");
+      editBtn.className = "btn btn-small";
+      editBtn.textContent = "Edit";
+      editBtn.addEventListener("click", () => openPlatformModal(key));
+
+      row.appendChild(nameEl);
+      row.appendChild(idEl);
+      row.appendChild(chip);
+      row.appendChild(editBtn);
+      platformList.appendChild(row);
+    });
+
+    // --- SAM.gov ---
+    const sam = b.gov.sam || {};
+    const samGrid = document.createElement("div");
+    samGrid.className = "business-summary";
+    [
+      ["UEI",        sam.uei        || "—"],
+      ["CAGE Code",  sam.cageCode   || "—"],
+      ["Status",     platformStatusLabel(sam.status || "not_registered")],
+      ["Expires",    fmtDate(sam.expirationDate)],
+    ].forEach(([k, v]) => {
+      const el = document.createElement("div");
+      el.className = "summary-item";
+      el.innerHTML = '<div class="k"></div><div class="v"></div>';
+      el.querySelector(".k").textContent = k;
+      el.querySelector(".v").textContent = v;
+      samGrid.appendChild(el);
+    });
+    samInfo.appendChild(samGrid);
+
+    // --- SBA Certs ---
+    const certs = b.gov.sbaCerts || [];
+    if (certs.length === 0) {
+      certBody.innerHTML = '<tr><td class="empty" colspan="5">No SBA certifications tracked.</td></tr>';
+      return;
+    }
+    certs.forEach((cert) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td></td>" +
+        '<td><span class="' + platformStatusChipClass(cert.status) + '"></span></td>' +
+        "<td></td><td></td>" +
+        '<td class="actions"><button class="btn btn-small" data-edit-cert></button> ' +
+        '<button class="btn btn-danger" data-del-cert>×</button></td>';
+      const cells = tr.querySelectorAll("td");
+      cells[0].textContent = certTypeLabel(cert.type);
+      tr.querySelector("span").textContent = platformStatusLabel(cert.status);
+      cells[2].textContent = fmtDate(cert.certDate);
+      cells[3].textContent = fmtDate(cert.expirationDate);
+      tr.querySelector("[data-edit-cert]").textContent = "Edit";
+      tr.querySelector("[data-edit-cert]").addEventListener("click", () => openSbaCertModal(cert));
+      tr.querySelector("[data-del-cert]").addEventListener("click", () => {
+        const label = certTypeLabel(cert.type);
+        if (!confirm("Remove " + label + " certification?")) return;
+        b.gov.sbaCerts = b.gov.sbaCerts.filter((c) => c.id !== cert.id);
+        log("biz", "Removed SBA cert " + label);
+        persist();
+      });
+      certBody.appendChild(tr);
+    });
+  }
+
   function statusChipClass(status) {
     return {
       approved: "chip chip-green",
@@ -311,6 +534,68 @@
     if (pct < 40) return "low";
     if (pct < 70) return "mid";
     return "good";
+  }
+
+  const API_SERVICE_LABELS = {
+    samgov: "SAM.gov",
+    stripe: "Stripe",
+    other:  "Other",
+  };
+
+  function apiConfigStatusChipClass(status) {
+    return {
+      active:          "chip chip-green",
+      inactive:        "chip chip-yellow",
+      expired:         "chip chip-red",
+      not_configured:  "chip chip-gray",
+    }[status] || "chip chip-gray";
+  }
+
+  const MASK_VISIBLE_CHARS = 4;
+
+  function maskApiKey(key) {
+    if (!key) return "—";
+    if (key.length <= MASK_VISIBLE_CHARS) return "••••";
+    return "••••" + key.slice(-MASK_VISIBLE_CHARS);
+  }
+
+  function renderApiConfigs() {
+    const body = $("#apiConfigBody");
+    body.innerHTML = "";
+    const b = activeBusiness();
+    if (!b) {
+      body.innerHTML = '<tr><td class="empty" colspan="6">Add a business to manage API configurations.</td></tr>';
+      return;
+    }
+    if (!b.apiConfigs) b.apiConfigs = [];
+    if (b.apiConfigs.length === 0) {
+      body.innerHTML = '<tr><td class="empty" colspan="6">No API configurations yet. Click + Config to add one.</td></tr>';
+      return;
+    }
+    b.apiConfigs.forEach((cfg) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td></td><td></td><td></td><td></td>" +
+        '<td><span class="' + apiConfigStatusChipClass(cfg.status) + '"></span></td>' +
+        '<td class="actions"><button class="btn btn-small" data-edit-api></button> ' +
+        '<button class="btn btn-danger" data-del-api>×</button></td>';
+      const cells = tr.querySelectorAll("td");
+      cells[0].textContent = cfg.name;
+      cells[1].textContent = API_SERVICE_LABELS[cfg.service] || cfg.service || "—";
+      cells[2].textContent = maskApiKey(cfg.apiKey);
+      cells[2].title       = cfg.notes || "";
+      cells[3].textContent = cfg.environment || "—";
+      tr.querySelector("span").textContent = platformStatusLabel(cfg.status);
+      tr.querySelector("[data-edit-api]").textContent = "Edit";
+      tr.querySelector("[data-edit-api]").addEventListener("click", () => openApiConfigModal(cfg));
+      tr.querySelector("[data-del-api]").addEventListener("click", () => {
+        if (!confirm('Remove API config "' + cfg.name + '"?')) return;
+        b.apiConfigs = b.apiConfigs.filter((c) => c.id !== cfg.id);
+        log("api", 'Removed API config "' + cfg.name + '"');
+        persist();
+      });
+      body.appendChild(tr);
+    });
   }
 
   function renderCredit() {
@@ -671,6 +956,172 @@
     });
     log("task", 'Added reminder "' + title + '" due ' + fmtDate(due));
     closeModal("modalReminder");
+    persist();
+  });
+
+  // Platform accounts (Stripe / Yelp / Google Business)
+  function openPlatformModal(key) {
+    const b = activeBusiness();
+    if (!b) { alert("Add a business first."); return; }
+    const cfg = PLATFORM_CONFIG[key];
+    if (!cfg) return;
+    editing.platformKey = key;
+    if (!b.platforms) b.platforms = {};
+    if (!b.platforms[key]) b.platforms[key] = { id: "", url: "", status: cfg.statusOptions[0].value };
+    const p = b.platforms[key];
+
+    $("#platModalTitle").textContent = cfg.title;
+    const idLabelEl = $("#platIdLabel");
+    idLabelEl.childNodes[0].nodeValue = cfg.idLabel + " ";
+    $("#platId").placeholder = cfg.idPlaceholder;
+    $("#platId").value = p.id || "";
+
+    const urlLabel = $("#platUrlLabel");
+    urlLabel.hidden = !cfg.hasUrl;
+    if (cfg.hasUrl) {
+      urlLabel.childNodes[0].nodeValue = cfg.urlLabel + " ";
+      $("#platUrl").placeholder = cfg.urlPlaceholder || "https://";
+      $("#platUrl").value = p.url || "";
+    }
+
+    const sel = $("#platStatus");
+    sel.innerHTML = "";
+    cfg.statusOptions.forEach(({ value, label }) => {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      if (value === p.status) opt.selected = true;
+      sel.appendChild(opt);
+    });
+
+    openModal("modalPlatformAcct");
+    setTimeout(() => $("#platId").focus(), 0);
+  }
+  $("#platSave").addEventListener("click", () => {
+    const b = activeBusiness();
+    if (!b || !editing.platformKey) return;
+    const key = editing.platformKey;
+    const cfg = PLATFORM_CONFIG[key];
+    if (!b.platforms) b.platforms = {};
+    const prior = b.platforms[key] || {};
+    b.platforms[key] = {
+      id:     $("#platId").value.trim(),
+      url:    cfg.hasUrl ? $("#platUrl").value.trim() : "",
+      status: $("#platStatus").value,
+    };
+    log("biz", "Updated " + cfg.title + " → " + platformStatusLabel(b.platforms[key].status));
+    closeModal("modalPlatformAcct");
+    persist();
+  });
+
+  // SAM.gov
+  $("#editSamBtn").addEventListener("click", () => {
+    const b = activeBusiness();
+    if (!b) { alert("Add a business first."); return; }
+    if (!b.gov) b.gov = { sam: { uei: "", cageCode: "", status: "not_registered", expirationDate: null }, sbaCerts: [] };
+    const sam = b.gov.sam || {};
+    $("#samUei").value        = sam.uei          || "";
+    $("#samCage").value       = sam.cageCode      || "";
+    $("#samStatus").value     = sam.status        || "not_registered";
+    $("#samExpiration").value = sam.expirationDate || "";
+    openModal("modalSam");
+    setTimeout(() => $("#samUei").focus(), 0);
+  });
+  $("#samSave").addEventListener("click", () => {
+    const b = activeBusiness();
+    if (!b) return;
+    if (!b.gov) b.gov = { sam: {}, sbaCerts: [] };
+    b.gov.sam = {
+      uei:            $("#samUei").value.trim().toUpperCase(),
+      cageCode:       $("#samCage").value.trim().toUpperCase(),
+      status:         $("#samStatus").value,
+      expirationDate: $("#samExpiration").value || null,
+    };
+    log("biz", "Updated SAM.gov registration → " + platformStatusLabel(b.gov.sam.status));
+    closeModal("modalSam");
+    persist();
+  });
+
+  // SBA Certifications
+  $("#addSbaCertBtn").addEventListener("click", () => openSbaCertModal(null));
+  function openSbaCertModal(existing) {
+    const b = activeBusiness();
+    if (!b) { alert("Add a business first."); return; }
+    editing.sbaCertId = existing ? existing.id : null;
+    $("#sbaCertTitle").textContent = existing ? "Edit SBA Certification" : "Add SBA Certification";
+    $("#sbaCertType").value   = existing ? existing.type           : "8a";
+    $("#sbaCertStatus").value = existing ? existing.status         : "pending";
+    $("#sbaCertDate").value   = existing ? (existing.certDate || "") : "";
+    $("#sbaCertExpiry").value = existing ? (existing.expirationDate || "") : "";
+    openModal("modalSbaCert");
+  }
+  $("#sbaCertSave").addEventListener("click", () => {
+    const b = activeBusiness();
+    if (!b) return;
+    if (!b.gov) b.gov = { sam: {}, sbaCerts: [] };
+    if (!b.gov.sbaCerts) b.gov.sbaCerts = [];
+    const payload = {
+      type:           $("#sbaCertType").value,
+      status:         $("#sbaCertStatus").value,
+      certDate:       $("#sbaCertDate").value || null,
+      expirationDate: $("#sbaCertExpiry").value || null,
+    };
+    const label = certTypeLabel(payload.type);
+    if (editing.sbaCertId) {
+      const target = b.gov.sbaCerts.find((c) => c.id === editing.sbaCertId);
+      if (target) {
+        Object.assign(target, payload);
+        log("biz", "Updated SBA cert " + label);
+      }
+    } else {
+      b.gov.sbaCerts.push(Object.assign({ id: uid() }, payload));
+      log("biz", "Added SBA cert " + label + " (" + payload.status + ")");
+    }
+    closeModal("modalSbaCert");
+    persist();
+  });
+
+  // API Configurations
+  $("#addApiConfigBtn").addEventListener("click", () => openApiConfigModal(null));
+  function openApiConfigModal(existing) {
+    const b = activeBusiness();
+    if (!b) { alert("Add a business first."); return; }
+    editing.apiConfigId = existing ? existing.id : null;
+    $("#apiConfigTitle").textContent = existing ? "Edit API Configuration" : "Add API Configuration";
+    $("#apiName").value    = existing ? existing.name        : "";
+    $("#apiService").value = existing ? (existing.service || "other") : "samgov";
+    $("#apiKey").value     = existing ? existing.apiKey      : "";
+    $("#apiEnv").value     = existing ? (existing.environment || "production") : "production";
+    $("#apiStatus").value  = existing ? existing.status      : "not_configured";
+    $("#apiNotes").value   = existing ? (existing.notes || "") : "";
+    openModal("modalApiConfig");
+    setTimeout(() => $("#apiName").focus(), 0);
+  }
+  $("#apiConfigSave").addEventListener("click", () => {
+    const b = activeBusiness();
+    if (!b) return;
+    const name = $("#apiName").value.trim();
+    if (!name) { $("#apiName").focus(); return; }
+    if (!b.apiConfigs) b.apiConfigs = [];
+    const payload = {
+      name,
+      service:     $("#apiService").value,
+      apiKey:      $("#apiKey").value.trim(),
+      environment: $("#apiEnv").value,
+      status:      $("#apiStatus").value,
+      notes:       $("#apiNotes").value.trim(),
+    };
+    if (editing.apiConfigId) {
+      const target = b.apiConfigs.find((c) => c.id === editing.apiConfigId);
+      if (target) {
+        Object.assign(target, payload);
+        log("api", 'Updated API config "' + name + '"');
+      }
+    } else {
+      b.apiConfigs.push(Object.assign({ id: uid() }, payload));
+      log("api", 'Added API config "' + name + '"');
+    }
+    closeModal("modalApiConfig");
     persist();
   });
 
