@@ -136,6 +136,10 @@
         sam: { uei: "", cageCode: "", status: "not_registered", expirationDate: null },
         sbaCerts: [],
       },
+      apiConfigs: [
+        { id: uid(), name: "SAM.gov API Key",       service: "samgov", apiKey: "", environment: "production", status: "not_configured", notes: "" },
+        { id: uid(), name: "Stripe Secret Key",     service: "stripe", apiKey: "", environment: "test",       status: "not_configured", notes: "" },
+      ],
     };
   }
 
@@ -150,6 +154,7 @@
     renderProfilesCard();
     renderNet30();
     renderBank();
+    renderApiConfigs();
     renderCredit();
     renderReminders();
     renderActivity();
@@ -271,6 +276,7 @@
       not_setup:       "Not Set Up",
       not_listed:      "Not Listed",
       not_registered:  "Not Registered",
+      not_configured:  "Not Configured",
       active:          "Active",
       verified:        "Verified",
       listed:          "Listed",
@@ -280,6 +286,7 @@
       suspended:       "Suspended",
       expired:         "Expired",
       denied:          "Denied",
+      inactive:        "Inactive",
     }[status] || status || "—";
   }
 
@@ -525,6 +532,66 @@
     if (pct < 40) return "low";
     if (pct < 70) return "mid";
     return "good";
+  }
+
+  const API_SERVICE_LABELS = {
+    samgov: "SAM.gov",
+    stripe: "Stripe",
+    other:  "Other",
+  };
+
+  function apiConfigStatusChipClass(status) {
+    return {
+      active:          "chip chip-green",
+      inactive:        "chip chip-yellow",
+      expired:         "chip chip-red",
+      not_configured:  "chip chip-gray",
+    }[status] || "chip chip-gray";
+  }
+
+  function maskApiKey(key) {
+    if (!key) return "—";
+    if (key.length <= 4) return "••••";
+    return "••••" + key.slice(-4);
+  }
+
+  function renderApiConfigs() {
+    const body = $("#apiConfigBody");
+    body.innerHTML = "";
+    const b = activeBusiness();
+    if (!b) {
+      body.innerHTML = '<tr><td class="empty" colspan="6">Add a business to manage API configurations.</td></tr>';
+      return;
+    }
+    if (!b.apiConfigs) b.apiConfigs = [];
+    if (b.apiConfigs.length === 0) {
+      body.innerHTML = '<tr><td class="empty" colspan="6">No API configurations yet. Click + Config to add one.</td></tr>';
+      return;
+    }
+    b.apiConfigs.forEach((cfg) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td></td><td></td><td></td><td></td>" +
+        '<td><span class="' + apiConfigStatusChipClass(cfg.status) + '"></span></td>' +
+        '<td class="actions"><button class="btn btn-small" data-edit-api></button> ' +
+        '<button class="btn btn-danger" data-del-api>×</button></td>';
+      const cells = tr.querySelectorAll("td");
+      cells[0].textContent = cfg.name;
+      cells[1].textContent = API_SERVICE_LABELS[cfg.service] || cfg.service || "—";
+      cells[2].textContent = maskApiKey(cfg.apiKey);
+      cells[2].title       = cfg.notes || "";
+      cells[3].textContent = cfg.environment || "—";
+      tr.querySelector("span").textContent = platformStatusLabel(cfg.status);
+      tr.querySelector("[data-edit-api]").textContent = "Edit";
+      tr.querySelector("[data-edit-api]").addEventListener("click", () => openApiConfigModal(cfg));
+      tr.querySelector("[data-del-api]").addEventListener("click", () => {
+        if (!confirm('Remove API config "' + cfg.name + '"?')) return;
+        b.apiConfigs = b.apiConfigs.filter((c) => c.id !== cfg.id);
+        log("api", 'Removed API config "' + cfg.name + '"');
+        persist();
+      });
+      body.appendChild(tr);
+    });
   }
 
   function renderCredit() {
@@ -1007,6 +1074,51 @@
       log("biz", "Added SBA cert " + label + " (" + payload.status + ")");
     }
     closeModal("modalSbaCert");
+    persist();
+  });
+
+  // API Configurations
+  let editingApiConfigId = null;
+  $("#addApiConfigBtn").addEventListener("click", () => openApiConfigModal(null));
+  function openApiConfigModal(existing) {
+    const b = activeBusiness();
+    if (!b) { alert("Add a business first."); return; }
+    editingApiConfigId = existing ? existing.id : null;
+    $("#apiConfigTitle").textContent = existing ? "Edit API Configuration" : "Add API Configuration";
+    $("#apiName").value    = existing ? existing.name        : "";
+    $("#apiService").value = existing ? (existing.service || "other") : "samgov";
+    $("#apiKey").value     = existing ? existing.apiKey      : "";
+    $("#apiEnv").value     = existing ? (existing.environment || "production") : "production";
+    $("#apiStatus").value  = existing ? existing.status      : "not_configured";
+    $("#apiNotes").value   = existing ? (existing.notes || "") : "";
+    openModal("modalApiConfig");
+    setTimeout(() => $("#apiName").focus(), 0);
+  }
+  $("#apiConfigSave").addEventListener("click", () => {
+    const b = activeBusiness();
+    if (!b) return;
+    const name = $("#apiName").value.trim();
+    if (!name) { $("#apiName").focus(); return; }
+    if (!b.apiConfigs) b.apiConfigs = [];
+    const payload = {
+      name,
+      service:     $("#apiService").value,
+      apiKey:      $("#apiKey").value.trim(),
+      environment: $("#apiEnv").value,
+      status:      $("#apiStatus").value,
+      notes:       $("#apiNotes").value.trim(),
+    };
+    if (editingApiConfigId) {
+      const target = b.apiConfigs.find((c) => c.id === editingApiConfigId);
+      if (target) {
+        Object.assign(target, payload);
+        log("api", 'Updated API config "' + name + '"');
+      }
+    } else {
+      b.apiConfigs.push(Object.assign({ id: uid() }, payload));
+      log("api", 'Added API config "' + name + '"');
+    }
+    closeModal("modalApiConfig");
     persist();
   });
 

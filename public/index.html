@@ -158,6 +158,31 @@
         </div>
       </div>
 
+      <!-- API Configurations -->
+      <div class="card">
+        <div class="card-head">
+          <h2>API Configurations</h2>
+          <button class="btn btn-small" id="addApiConfigBtn">+ Config</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Service</th>
+                  <th>Key (masked)</th>
+                  <th>Environment</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="apiConfigBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- Credit monitoring -->
       <div class="card">
         <div class="card-head">
@@ -406,6 +431,42 @@
       <div class="modal-actions">
         <button class="btn" data-close>Cancel</button>
         <button class="btn btn-primary" id="sbaCertSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: API configuration -->
+  <div class="modal" id="modalApiConfig" hidden>
+    <div class="modal-card">
+      <h2 id="apiConfigTitle">Add API Configuration</h2>
+      <label>Name <input id="apiName" type="text" placeholder="SAM.gov API Key" /></label>
+      <label>Service
+        <select id="apiService">
+          <option value="samgov">SAM.gov</option>
+          <option value="stripe">Stripe</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>API Key / Token <input id="apiKey" type="text" placeholder="Paste key here" autocomplete="off" /></label>
+      <label>Environment
+        <select id="apiEnv">
+          <option value="production">Production</option>
+          <option value="sandbox">Sandbox</option>
+          <option value="test">Test</option>
+        </select>
+      </label>
+      <label>Status
+        <select id="apiStatus">
+          <option value="not_configured">Not Configured</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="expired">Expired</option>
+        </select>
+      </label>
+      <label>Notes <input id="apiNotes" type="text" placeholder="Optional notes" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="apiConfigSave">Save</button>
       </div>
     </div>
   </div>
