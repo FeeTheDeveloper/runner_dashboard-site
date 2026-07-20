@@ -405,13 +405,13 @@
       const tr = document.createElement("tr");
       tr.innerHTML =
         "<td></td>" +
-        '<td><span class="' + statusChipClass(cert.status) + '"></span></td>' +
+        '<td><span class="' + platformStatusChipClass(cert.status) + '"></span></td>' +
         "<td></td><td></td>" +
         '<td class="actions"><button class="btn btn-small" data-edit-cert></button> ' +
         '<button class="btn btn-danger" data-del-cert>×</button></td>';
       const cells = tr.querySelectorAll("td");
       cells[0].textContent = certTypeLabel(cert.type);
-      tr.querySelector("span").textContent = cert.status;
+      tr.querySelector("span").textContent = platformStatusLabel(cert.status);
       cells[2].textContent = fmtDate(cert.certDate);
       cells[3].textContent = fmtDate(cert.expirationDate);
       tr.querySelector("[data-edit-cert]").textContent = "Edit";
