@@ -1165,7 +1165,365 @@
     e.target.value = "";
   });
 
-  // Cross-tab sync
+  // ---------- Bulk CSV Upload ----------
+
+  // Normalise a string to space-separated tokens, wrapped in leading/trailing
+  // spaces so that word-boundary checks work with a simple includes() call.
+  function normTokens(str) {
+    return " " + String(str || "").toLowerCase().replace(/[^a-z0-9]+/g, " ") + " ";
+  }
+
+  // Classification: keyword → sector.
+  // Keywords are pre-normalised once at load time; the same normalisation is
+  // applied to the haystack so "bar" won't match inside "barbaric".
+  const CLASSIFICATION_RULES = [
+    { cls: "Technology",        cssClass: "cls-technology",    keywords: ["tech","software","digital","web","webapp","saas","cyber","database","cloud","gaming","coding","developer","devops","computer","hardware","electronics","telecom","network","infosec","artificial intelligence","machine learning"] },
+    { cls: "Healthcare",        cssClass: "cls-healthcare",    keywords: ["health","medical","dental","pharma","biotech","clinic","hospital","therapy","wellness","mental","vision","rehab","nursing","physician","doctor","nurse","lab","laboratory"] },
+    { cls: "Retail",            cssClass: "cls-retail",        keywords: ["retail","store","shop","ecommerce","boutique","merchandise","fashion","apparel","clothing","jewelry","gift shop","supplies","wholesale","distribution","import","export"] },
+    { cls: "Food & Beverage",   cssClass: "cls-food",          keywords: ["food","restaurant","cafe","catering","beverage","tavern","saloon","bakery","brewery","winery","kitchen","dining","pizza","taco","burger","grill","bistro","deli","snack","drink","bar","lounge"] },
+    { cls: "Construction",      cssClass: "cls-construction",  keywords: ["construct","contractor","building","plumbing","electrical","hvac","renovation","remodel","landscaping","roofing","paving","welding","carpentry","masonry","excavation","infrastructure"] },
+    { cls: "Finance",           cssClass: "cls-finance",       keywords: ["finance","accounting","cpa","tax","insurance","investment","mortgage","banking","credit union","lending","fund","wealth","capital","brokerage","payroll","bookkeeping","audit"] },
+    { cls: "Real Estate",       cssClass: "cls-realestate",    keywords: ["real estate","realty","property","rental","housing","commercial real","residential","apartments","leasing","asset management","land"] },
+    { cls: "Professional Svcs", cssClass: "cls-professional",  keywords: ["consulting","law firm","legal","attorney","marketing","advertising","staffing","human resource","management","recruitment","research","training","coaching","engineering services"] },
+    { cls: "Transportation",    cssClass: "cls-transportation",keywords: ["transport","logistics","delivery","freight","trucking","moving","fleet","courier","shipping","warehouse","supply chain","auto repair","vehicle"] },
+    { cls: "Manufacturing",     cssClass: "cls-manufacturing", keywords: ["manufacturing","production","factory","fabrication","assembly","industrial","machining","printing","packaging","chemical","materials","metal","steel","plastics"] },
+  ].map((rule) => ({ ...rule, keywords: rule.keywords.map(normTokens) }));
+
+  function classifyBusiness(industry, name) {
+    const haystack = normTokens((industry || "") + " " + (name || ""));
+    for (const rule of CLASSIFICATION_RULES) {
+      for (const normKw of rule.keywords) {
+        if (haystack.includes(normKw)) return rule;
+      }
+    }
+    return { cls: "Other", cssClass: "cls-other", keywords: [] };
+  }
+
+  // Helper: pluralise "business / businesses"
+  function fmtBusinessCount(n) {
+    return n + " Business" + (n !== 1 ? "es" : "");
+  }
+
+  // Robust CSV parser (handles quoted fields, newlines in quotes, large files)
+  function parseCSV(text) {
+    const rows = [];
+    let row = [], field = "", inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i], next = text[i + 1];
+      if (inQ) {
+        if (ch === '"' && next === '"') { field += '"'; i++; }
+        else if (ch === '"') { inQ = false; }
+        else { field += ch; }
+      } else {
+        if (ch === '"') { inQ = true; }
+        else if (ch === ',') { row.push(field.trim()); field = ""; }
+        else if (ch === '\n' || ch === '\r') {
+          row.push(field.trim()); field = "";
+          if (row.some(Boolean)) rows.push(row);
+          row = [];
+          if (ch === '\r' && next === '\n') i++;
+        } else { field += ch; }
+      }
+    }
+    row.push(field.trim());
+    if (row.some(Boolean)) rows.push(row);
+    return rows;
+  }
+
+  // Map a header string to a canonical field key
+  function mapHeader(h) {
+    const cleanedHeader = h.toLowerCase().replace(/[\s_\-]+/g, "");
+    if (["name","businessname","legalname","company","companyname","bizname","business"].includes(cleanedHeader)) return "name";
+    if (["type","entitytype","entity","businesstype","structure","legalstructure","form"].includes(cleanedHeader)) return "type";
+    if (["industry","sector","field","vertical","businesssector"].includes(cleanedHeader)) return "industry";
+    if (["ein","taxid","federaltaxid","taxpayerid","tin","fein"].includes(cleanedHeader)) return "ein";
+    if (["formed","incorporated","startdate","dateformed","dateincorporated","foundeddate","founded","opened"].includes(cleanedHeader)) return "formed";
+    if (["classification","class","category","segment"].includes(cleanedHeader)) return "classification";
+    return null;
+  }
+
+  // Normalise entity type string to one of the select option values
+  function normaliseEntityType(raw) {
+    if (!raw) return "LLC";
+    const s = raw.trim().toLowerCase();
+    if (s.includes("s-corp") || s.includes("s corp") || s === "scorp") return "S-Corp";
+    if (s.includes("c-corp") || s.includes("c corp") || s === "ccorp" || s === "corporation") return "C-Corp";
+    if (s.includes("sole") || s.includes("proprietor") || s === "sp") return "Sole Prop";
+    if (s.includes("partner")) return "Partnership";
+    if (s.includes("llc") || s.includes("l.l.c")) return "LLC";
+    return raw.trim() || "LLC";
+  }
+
+  // Parse raw CSV rows into structured business preview objects
+  function csvRowsToBusinesses(rows) {
+    if (rows.length < 2) throw new Error("CSV must have a header row and at least one data row.");
+    const headers = rows[0].map((h) => mapHeader(h));
+    const businesses = [];
+    const existingNames = new Set(state.businesses.map((b) => b.name.trim().toLowerCase()));
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (row.every((c) => !c)) continue; // skip blank rows
+      const rec = {};
+      headers.forEach((key, idx) => {
+        if (key) rec[key] = row[idx] || "";
+      });
+      const name = (rec.name || "").trim();
+      if (!name) continue;
+      const industry = (rec.industry || "").trim();
+      const clsRule = rec.classification
+        ? { cls: rec.classification, cssClass: "cls-other", keywords: [] }
+        : classifyBusiness(industry, name);
+      if (rec.classification) {
+        // Try to match css class from built-in rules
+        const found = CLASSIFICATION_RULES.find((r) => r.cls.toLowerCase() === rec.classification.toLowerCase());
+        if (found) { clsRule.cls = found.cls; clsRule.cssClass = found.cssClass; }
+      }
+      businesses.push({
+        _rowIdx: i,
+        name,
+        type: normaliseEntityType(rec.type),
+        industry,
+        ein: (rec.ein || "").trim(),
+        formed: (rec.formed || "").trim(),
+        classification: clsRule.cls,
+        classificationCss: clsRule.cssClass,
+        duplicate: existingNames.has(name.toLowerCase()),
+        selected: !existingNames.has(name.toLowerCase()),
+      });
+    }
+    if (businesses.length === 0) throw new Error("No valid business rows found. Ensure the CSV has a 'name' column.");
+    return businesses;
+  }
+
+  // Bulk upload state
+  let bulkParsed = [];
+  let bulkFilterClass = "";
+  let bulkSortBy = "name";
+
+  function buildClassStats(rows) {
+    const counts = {};
+    rows.forEach((r) => {
+      counts[r.classification] = counts[r.classification] || { cls: r.classification, css: r.classificationCss, count: 0 };
+      counts[r.classification].count++;
+    });
+    return Object.values(counts).sort((a, b) => b.count - a.count);
+  }
+
+  function renderBulkPreview() {
+    const stats = buildClassStats(bulkParsed);
+    // Stats chips
+    const statsEl = $("#bulkStats");
+    statsEl.innerHTML = "";
+    stats.forEach((s) => {
+      const chip = document.createElement("span");
+      chip.className = "bulk-stat-chip chip " + s.css;
+      chip.textContent = s.cls + " (" + s.count + ")";
+      chip.addEventListener("click", () => {
+        bulkFilterClass = (bulkFilterClass === s.cls) ? "" : s.cls;
+        $("#bulkFilterClass").value = bulkFilterClass;
+        renderBulkTable();
+      });
+      statsEl.appendChild(chip);
+    });
+
+    // Filter dropdown options
+    const filterSel = $("#bulkFilterClass");
+    filterSel.innerHTML = '<option value="">All</option>';
+    stats.forEach((s) => {
+      const opt = document.createElement("option");
+      opt.value = s.cls;
+      opt.textContent = s.cls + " (" + s.count + ")";
+      filterSel.appendChild(opt);
+    });
+    filterSel.value = bulkFilterClass;
+
+    renderBulkTable();
+  }
+
+  function renderBulkTable() {
+    let rows = bulkParsed.slice();
+
+    if (bulkFilterClass) rows = rows.filter((r) => r.classification === bulkFilterClass);
+
+    rows.sort((a, b) => {
+      if (bulkSortBy === "classification") return a.classification.localeCompare(b.classification);
+      if (bulkSortBy === "type") return a.type.localeCompare(b.type);
+      return a.name.localeCompare(b.name);
+    });
+
+    const tbody = $("#bulkPreviewBody");
+    tbody.innerHTML = "";
+    rows.forEach((rec) => {
+      const tr = document.createElement("tr");
+      if (rec.duplicate) tr.className = "bulk-duplicate";
+      const status = rec.duplicate
+        ? '<span class="chip chip-yellow">Duplicate</span>'
+        : '<span class="chip chip-green">New</span>';
+      tr.innerHTML =
+        '<td><input type="checkbox" class="bulk-row-check" data-row="' + rec._rowIdx + '"' + (rec.selected ? " checked" : "") + (rec.duplicate ? ' title="Already exists"' : "") + ' /></td>' +
+        '<td>' + escapeHtml(rec.name) + '</td>' +
+        '<td>' + escapeHtml(rec.type) + '</td>' +
+        '<td>' + escapeHtml(rec.industry || "—") + '</td>' +
+        '<td><span class="chip bulk-stat-chip ' + rec.classificationCss + '">' + escapeHtml(rec.classification) + '</span></td>' +
+        '<td>' + escapeHtml(rec.ein || "—") + '</td>' +
+        '<td>' + escapeHtml(rec.formed || "—") + '</td>' +
+        '<td>' + status + '</td>';
+      tbody.appendChild(tr);
+    });
+
+    const selCount = bulkParsed.filter((r) => r.selected).length;
+    $("#bulkRowCount").textContent = rows.length + " row" + (rows.length !== 1 ? "s" : "") + " shown";
+    $("#bulkImportBtn").textContent = "Import " + fmtBusinessCount(selCount);
+    // Select-all state
+    const allChecked = rows.length > 0 && rows.every((r) => r.selected);
+    $("#bulkSelectAll").checked = allChecked;
+    $("#bulkSelectAll").indeterminate = !allChecked && rows.some((r) => r.selected);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function resetBulkModal() {
+    bulkParsed = [];
+    bulkFilterClass = "";
+    bulkSortBy = "name";
+    $("#bulkDropZone").hidden = false;
+    $("#bulkResults").hidden = true;
+    $("#bulkImportBtn").hidden = true;
+    $("#bulkResetBtn").hidden = true;
+    $("#bulkSubtitle").textContent = "Upload a CSV file to parse, classify, and import businesses.";
+    $("#uploadCsvFileModal").value = "";
+  }
+
+  function handleCsvFile(file) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv") && file.type !== "text/csv") {
+      alert("Please select a CSV (.csv) file.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const rows = parseCSV(reader.result);
+        bulkParsed = csvRowsToBusinesses(rows);
+        $("#bulkDropZone").hidden = true;
+        $("#bulkResults").hidden = false;
+        $("#bulkImportBtn").hidden = false;
+        $("#bulkResetBtn").hidden = false;
+        $("#bulkSubtitle").textContent = "Parsed " + bulkParsed.length + " record" + (bulkParsed.length !== 1 ? "s" : "") + " from " + file.name + ". Review, then import.";
+        renderBulkPreview();
+      } catch (err) {
+        alert("CSV parse error: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // Topbar button
+  $("#uploadCsvBtn").addEventListener("click", () => {
+    resetBulkModal();
+    openModal("modalBulkUpload");
+  });
+  // Topbar hidden file input (redundant path, kept for programmatic use)
+  $("#uploadCsvFile").addEventListener("change", (e) => {
+    handleCsvFile(e.target.files[0]);
+    e.target.value = "";
+  });
+
+  // Modal file input (browse link)
+  $("#uploadCsvFileModal").addEventListener("change", (e) => {
+    handleCsvFile(e.target.files[0]);
+    e.target.value = "";
+  });
+
+  // Click on drop zone triggers file chooser
+  $("#bulkDropZone").addEventListener("click", (e) => {
+    if (e.target.tagName !== "LABEL" && e.target.tagName !== "INPUT") {
+      $("#uploadCsvFileModal").click();
+    }
+  });
+
+  // Drag-and-drop
+  ["dragenter", "dragover"].forEach((evt) => {
+    $("#bulkDropZone").addEventListener(evt, (e) => {
+      e.preventDefault();
+      $("#bulkDropZone").classList.add("drag-over");
+    });
+  });
+  ["dragleave", "drop"].forEach((evt) => {
+    $("#bulkDropZone").addEventListener(evt, (e) => {
+      e.preventDefault();
+      $("#bulkDropZone").classList.remove("drag-over");
+    });
+  });
+  $("#bulkDropZone").addEventListener("drop", (e) => {
+    const file = e.dataTransfer.files[0];
+    handleCsvFile(file);
+  });
+
+  // Filter / sort controls
+  $("#bulkFilterClass").addEventListener("change", (e) => {
+    bulkFilterClass = e.target.value;
+    renderBulkTable();
+  });
+  $("#bulkSortBy").addEventListener("change", (e) => {
+    bulkSortBy = e.target.value;
+    renderBulkTable();
+  });
+
+  // Select-all checkbox
+  $("#bulkSelectAll").addEventListener("change", (e) => {
+    const checked = e.target.checked;
+    // Only affect currently visible rows
+    $$(".bulk-row-check").forEach((cb) => {
+      const idx = parseInt(cb.dataset.row, 10);
+      const rec = bulkParsed.find((r) => r._rowIdx === idx);
+      if (rec) rec.selected = checked;
+      cb.checked = checked;
+    });
+    const selCount = bulkParsed.filter((r) => r.selected).length;
+    $("#bulkImportBtn").textContent = "Import " + fmtBusinessCount(selCount);
+  });
+
+  // Individual row checkbox (event delegation)
+  $("#bulkPreviewBody").addEventListener("change", (e) => {
+    if (!e.target.classList.contains("bulk-row-check")) return;
+    const idx = parseInt(e.target.dataset.row, 10);
+    const rec = bulkParsed.find((r) => r._rowIdx === idx);
+    if (rec) rec.selected = e.target.checked;
+    // Update select-all
+    const visible = $$(".bulk-row-check");
+    const allChecked = visible.length > 0 && visible.every((cb) => cb.checked);
+    $("#bulkSelectAll").checked = allChecked;
+    $("#bulkSelectAll").indeterminate = !allChecked && visible.some((cb) => cb.checked);
+    const selCount = bulkParsed.filter((r) => r.selected).length;
+    $("#bulkImportBtn").textContent = "Import " + fmtBusinessCount(selCount);
+  });
+
+  // Reset (re-upload)
+  $("#bulkResetBtn").addEventListener("click", resetBulkModal);
+
+  // Import selected
+  $("#bulkImportBtn").addEventListener("click", () => {
+    const toImport = bulkParsed.filter((r) => r.selected);
+    if (toImport.length === 0) { alert("Select at least one business to import."); return; }
+    if (!confirm("Import " + fmtBusinessCount(toImport.length) + "?")) return;
+    toImport.forEach((rec) => {
+      const newBusiness = seedBusiness(rec.name, rec.type, rec.industry, rec.ein, rec.formed || null);
+      newBusiness.classification = rec.classification;
+      state.businesses.push(newBusiness);
+      log("biz", "Bulk imported: " + rec.name + " [" + rec.classification + "]");
+    });
+    if (!state.activeId && state.businesses[0]) state.activeId = state.businesses[0].id;
+    closeModal("modalBulkUpload");
+    persist();
+  });
+
+  // ---------- end Bulk CSV Upload ----------
+
+
   window.addEventListener("storage", (e) => {
     if (e.key === STORAGE_KEY && e.newValue) {
       try {
