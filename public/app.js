@@ -1167,25 +1167,34 @@
 
   // ---------- Bulk CSV Upload ----------
 
-  // Classification: keyword → sector
+  // Classification: keyword → sector.
+  // Keywords are matched against a normalised haystack where every run of
+  // non-alphanumeric characters is replaced by a single space and the string
+  // is wrapped in spaces, so "bar" won't match inside "barbaric".
   const CLASSIFICATION_RULES = [
-    { cls: "Technology",      cssClass: "cls-technology",    keywords: ["tech","software"," it ","digital","web ","web,","webapp",".com","saas","cyber","database","cloud","gaming","coding","developer","devops","computer","hardware","electronics","telecom","network ","infosec","artificial intelligence","machine learning"] },
-    { cls: "Healthcare",      cssClass: "cls-healthcare",    keywords: ["health","medical","dental","pharma","biotech","clinic","hospita","therapy","wellness","mental","vision","rehab","nursing","physician","doctor","nurse"," lab,","labs,","laboratory"] },
-    { cls: "Retail",          cssClass: "cls-retail",        keywords: ["retail","store","shop","ecommerce","e-commerce","boutique","merchandise","fashion","apparel","clothing","jewelry","gift shop","supplies","wholesale","distribution","import","export"] },
-    { cls: "Food & Beverage", cssClass: "cls-food",          keywords: ["food","restaurant","cafe","catering","beverage","tavern","saloon","bakery","brewery","winery","kitchen","dining","pizza","taco","burger","grill","bistro","deli","snack","drink"," bar "," bar,","lounge"] },
-    { cls: "Construction",    cssClass: "cls-construction",  keywords: ["construct","contractor","building","plumbing","electrical","hvac","renovation","remodel","landscap","roofing","paving","welding","carpentry","masonry","excavat","infrastructure"] },
-    { cls: "Finance",         cssClass: "cls-finance",       keywords: ["financ","accounting","cpa","tax ","insurance","invest","mortgage","banking","credit union","lending","fund","wealth","capital","brokerage","payroll","bookkeeping","audit"] },
-    { cls: "Real Estate",     cssClass: "cls-realestate",    keywords: ["real estate","realty","property","rental","housing","commercial real","residential","apartments","leasing","asset management","land "] },
-    { cls: "Professional Svcs", cssClass: "cls-professional",keywords: ["consulting","law firm","legal","attorney","marketing","advertising"," pr ","staffing","human resource","management","recruitment","research","training","coaching","engineering services"] },
-    { cls: "Transportation",  cssClass: "cls-transportation",keywords: ["transport","logistics","delivery","freight","trucking","moving","fleet","courier","shipping","warehouse","supply chain","auto repair","vehicle"," auto "] },
-    { cls: "Manufacturing",   cssClass: "cls-manufacturing", keywords: ["manufactur","production","factory","fabricat","assembly","industrial","machining","printing","packaging","chemical","materials","metal","steel","plastics"] },
+    { cls: "Technology",        cssClass: "cls-technology",    keywords: ["tech","software","it","digital","web","webapp","saas","cyber","database","cloud","gaming","coding","developer","devops","computer","hardware","electronics","telecom","network","infosec","artificial intelligence","machine learning"] },
+    { cls: "Healthcare",        cssClass: "cls-healthcare",    keywords: ["health","medical","dental","pharma","biotech","clinic","hospital","therapy","wellness","mental","vision","rehab","nursing","physician","doctor","nurse","lab","laboratory"] },
+    { cls: "Retail",            cssClass: "cls-retail",        keywords: ["retail","store","shop","ecommerce","boutique","merchandise","fashion","apparel","clothing","jewelry","gift shop","supplies","wholesale","distribution","import","export"] },
+    { cls: "Food & Beverage",   cssClass: "cls-food",          keywords: ["food","restaurant","cafe","catering","beverage","tavern","saloon","bakery","brewery","winery","kitchen","dining","pizza","taco","burger","grill","bistro","deli","snack","drink","bar","lounge"] },
+    { cls: "Construction",      cssClass: "cls-construction",  keywords: ["construct","contractor","building","plumbing","electrical","hvac","renovation","remodel","landscaping","roofing","paving","welding","carpentry","masonry","excavation","infrastructure"] },
+    { cls: "Finance",           cssClass: "cls-finance",       keywords: ["finance","accounting","cpa","tax","insurance","investment","mortgage","banking","credit union","lending","fund","wealth","capital","brokerage","payroll","bookkeeping","audit"] },
+    { cls: "Real Estate",       cssClass: "cls-realestate",    keywords: ["real estate","realty","property","rental","housing","commercial real","residential","apartments","leasing","asset management","land"] },
+    { cls: "Professional Svcs", cssClass: "cls-professional",  keywords: ["consulting","law firm","legal","attorney","marketing","advertising","staffing","human resource","management","recruitment","research","training","coaching","engineering services"] },
+    { cls: "Transportation",    cssClass: "cls-transportation",keywords: ["transport","logistics","delivery","freight","trucking","moving","fleet","courier","shipping","warehouse","supply chain","auto repair","vehicle"] },
+    { cls: "Manufacturing",     cssClass: "cls-manufacturing", keywords: ["manufacturing","production","factory","fabrication","assembly","industrial","machining","printing","packaging","chemical","materials","metal","steel","plastics"] },
   ];
 
+  // Normalise a string to space-separated tokens, wrapped in leading/trailing
+  // spaces so that word-boundary checks work with a simple includes() call.
+  function normTokens(str) {
+    return " " + String(str || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() + " ";
+  }
+
   function classifyBusiness(industry, name) {
-    const haystack = ((industry || "") + " " + (name || "")).toLowerCase();
+    const haystack = normTokens((industry || "") + " " + (name || ""));
     for (const rule of CLASSIFICATION_RULES) {
       for (const kw of rule.keywords) {
-        if (haystack.includes(kw)) return rule;
+        if (haystack.includes(normTokens(kw))) return rule;
       }
     }
     return { cls: "Other", cssClass: "cls-other", keywords: [] };
@@ -1219,13 +1228,13 @@
 
   // Map a header string to a canonical field key
   function mapHeader(h) {
-    const s = h.toLowerCase().replace(/[\s_\-]+/g, "");
-    if (["name","businessname","legalname","company","companyname","bizname","business"].includes(s)) return "name";
-    if (["type","entitytype","entity","businesstype","structure","legalstructure","form"].includes(s)) return "type";
-    if (["industry","sector","field","vertical","businesssector"].includes(s)) return "industry";
-    if (["ein","taxid","federaltaxid","taxpayerid","tin","fein"].includes(s)) return "ein";
-    if (["formed","incorporated","startdate","dateformed","dateincorporated","foundeddate","founded","opened"].includes(s)) return "formed";
-    if (["classification","class","category","segment"].includes(s)) return "classification";
+    const cleanedHeader = h.toLowerCase().replace(/[\s_\-]+/g, "");
+    if (["name","businessname","legalname","company","companyname","bizname","business"].includes(cleanedHeader)) return "name";
+    if (["type","entitytype","entity","businesstype","structure","legalstructure","form"].includes(cleanedHeader)) return "type";
+    if (["industry","sector","field","vertical","businesssector"].includes(cleanedHeader)) return "industry";
+    if (["ein","taxid","federaltaxid","taxpayerid","tin","fein"].includes(cleanedHeader)) return "ein";
+    if (["formed","incorporated","startdate","dateformed","dateincorporated","foundeddate","founded","opened"].includes(cleanedHeader)) return "formed";
+    if (["classification","class","category","segment"].includes(cleanedHeader)) return "classification";
     return null;
   }
 
@@ -1349,12 +1358,12 @@
         : '<span class="chip chip-green">New</span>';
       tr.innerHTML =
         '<td><input type="checkbox" class="bulk-row-check" data-row="' + rec._rowIdx + '"' + (rec.selected ? " checked" : "") + (rec.duplicate ? ' title="Already exists"' : "") + ' /></td>' +
-        '<td>' + esc(rec.name) + '</td>' +
-        '<td>' + esc(rec.type) + '</td>' +
-        '<td>' + esc(rec.industry || "—") + '</td>' +
-        '<td><span class="chip bulk-stat-chip ' + rec.classificationCss + '">' + esc(rec.classification) + '</span></td>' +
-        '<td>' + esc(rec.ein || "—") + '</td>' +
-        '<td>' + esc(rec.formed || "—") + '</td>' +
+        '<td>' + escapeHtml(rec.name) + '</td>' +
+        '<td>' + escapeHtml(rec.type) + '</td>' +
+        '<td>' + escapeHtml(rec.industry || "—") + '</td>' +
+        '<td><span class="chip bulk-stat-chip ' + rec.classificationCss + '">' + escapeHtml(rec.classification) + '</span></td>' +
+        '<td>' + escapeHtml(rec.ein || "—") + '</td>' +
+        '<td>' + escapeHtml(rec.formed || "—") + '</td>' +
         '<td>' + status + '</td>';
       tbody.appendChild(tr);
     });
@@ -1368,7 +1377,7 @@
     $("#bulkSelectAll").indeterminate = !allChecked && rows.some((r) => r.selected);
   }
 
-  function esc(s) {
+  function escapeHtml(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
@@ -1399,7 +1408,7 @@
         $("#bulkResults").hidden = false;
         $("#bulkImportBtn").hidden = false;
         $("#bulkResetBtn").hidden = false;
-        $("#bulkSubtitle").textContent = "Parsed " + bulkParsed.length + " record" + (bulkParsed.length !== 1 ? "s" : "") + " from " + esc(file.name) + ". Review, then import.";
+        $("#bulkSubtitle").textContent = "Parsed " + bulkParsed.length + " record" + (bulkParsed.length !== 1 ? "s" : "") + " from " + escapeHtml(file.name) + ". Review, then import.";
         renderBulkPreview();
       } catch (err) {
         alert("CSV parse error: " + err.message);
@@ -1498,8 +1507,8 @@
     if (toImport.length === 0) { alert("Select at least one business to import."); return; }
     if (!confirm("Import " + toImport.length + " business" + (toImport.length !== 1 ? "es" : "") + "?")) return;
     toImport.forEach((rec) => {
-      const b = seedBusiness(rec.name, rec.type, rec.industry, rec.ein, rec.formed || null);
-      state.businesses.push(b);
+      const newBusiness = seedBusiness(rec.name, rec.type, rec.industry, rec.ein, rec.formed || null);
+      state.businesses.push(newBusiness);
       log("biz", "Bulk imported: " + rec.name + " [" + rec.classification + "]");
     });
     if (!state.activeId && state.businesses[0]) state.activeId = state.businesses[0].id;
