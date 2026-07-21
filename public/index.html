@@ -18,6 +18,8 @@
       <button class="btn" id="exportBtn" title="Export JSON">Export</button>
       <button class="btn" id="importBtn" title="Import JSON">Import</button>
       <input type="file" id="importFile" accept="application/json" hidden />
+      <button class="btn btn-upload" id="uploadCsvBtn" title="Bulk upload CSV to classify businesses">⬆ Bulk Upload</button>
+      <input type="file" id="uploadCsvFile" accept=".csv,text/csv" hidden />
     </div>
   </header>
 
@@ -467,6 +469,69 @@
       <div class="modal-actions">
         <button class="btn" data-close>Cancel</button>
         <button class="btn btn-primary" id="apiConfigSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: bulk CSV upload -->
+  <div class="modal" id="modalBulkUpload" hidden>
+    <div class="modal-card modal-card-wide">
+      <div class="bulk-header">
+        <h2>Bulk Upload — Classify Businesses</h2>
+        <div class="bulk-header-sub" id="bulkSubtitle">Upload a CSV file to parse, classify, and import businesses.</div>
+      </div>
+
+      <!-- Step 1: drop zone (shown before file chosen) -->
+      <div id="bulkDropZone" class="bulk-drop-zone">
+        <div class="bulk-drop-icon">📂</div>
+        <div class="bulk-drop-text">Drop a CSV file here or <label for="uploadCsvFileModal" class="bulk-drop-link">browse</label></div>
+        <div class="bulk-drop-hint">Columns detected automatically — name, type, industry, EIN, formed date, and more</div>
+        <input type="file" id="uploadCsvFileModal" accept=".csv,text/csv" hidden />
+      </div>
+
+      <!-- Step 2: classification summary + preview table (hidden until file parsed) -->
+      <div id="bulkResults" hidden>
+        <div class="bulk-stats" id="bulkStats"></div>
+
+        <div class="bulk-filter-row">
+          <label class="bulk-filter-label">Filter by class:
+            <select id="bulkFilterClass" class="bulk-filter-select">
+              <option value="">All</option>
+            </select>
+          </label>
+          <label class="bulk-filter-label">Sort by:
+            <select id="bulkSortBy" class="bulk-filter-select">
+              <option value="name">Name</option>
+              <option value="classification">Classification</option>
+              <option value="type">Entity Type</option>
+            </select>
+          </label>
+          <span class="bulk-row-count" id="bulkRowCount"></span>
+        </div>
+
+        <div class="bulk-table-wrap">
+          <table class="data" id="bulkPreviewTable">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="bulkSelectAll" title="Select / deselect all" /></th>
+                <th>Business Name</th>
+                <th>Entity Type</th>
+                <th>Industry</th>
+                <th>Classification</th>
+                <th>EIN</th>
+                <th>Formed</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="bulkPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn" id="bulkResetBtn" hidden>← Re-upload</button>
+        <button class="btn btn-primary" id="bulkImportBtn" hidden>Import Selected</button>
       </div>
     </div>
   </div>
