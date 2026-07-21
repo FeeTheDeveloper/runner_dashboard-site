@@ -1177,7 +1177,7 @@
   // Keywords are pre-normalised once at load time; the same normalisation is
   // applied to the haystack so "bar" won't match inside "barbaric".
   const CLASSIFICATION_RULES = [
-    { cls: "Technology",        cssClass: "cls-technology",    keywords: ["tech","software","it","digital","web","webapp","saas","cyber","database","cloud","gaming","coding","developer","devops","computer","hardware","electronics","telecom","network","infosec","artificial intelligence","machine learning"] },
+    { cls: "Technology",        cssClass: "cls-technology",    keywords: ["tech","software","digital","web","webapp","saas","cyber","database","cloud","gaming","coding","developer","devops","computer","hardware","electronics","telecom","network","infosec","artificial intelligence","machine learning"] },
     { cls: "Healthcare",        cssClass: "cls-healthcare",    keywords: ["health","medical","dental","pharma","biotech","clinic","hospital","therapy","wellness","mental","vision","rehab","nursing","physician","doctor","nurse","lab","laboratory"] },
     { cls: "Retail",            cssClass: "cls-retail",        keywords: ["retail","store","shop","ecommerce","boutique","merchandise","fashion","apparel","clothing","jewelry","gift shop","supplies","wholesale","distribution","import","export"] },
     { cls: "Food & Beverage",   cssClass: "cls-food",          keywords: ["food","restaurant","cafe","catering","beverage","tavern","saloon","bakery","brewery","winery","kitchen","dining","pizza","taco","burger","grill","bistro","deli","snack","drink","bar","lounge"] },
@@ -1246,8 +1246,8 @@
   function normaliseEntityType(raw) {
     if (!raw) return "LLC";
     const s = raw.trim().toLowerCase();
-    if (s.includes("c-corp") || s.includes("c corp") || s === "ccorp" || s === "corporation") return "C-Corp";
     if (s.includes("s-corp") || s.includes("s corp") || s === "scorp") return "S-Corp";
+    if (s.includes("c-corp") || s.includes("c corp") || s === "ccorp" || s === "corporation") return "C-Corp";
     if (s.includes("sole") || s.includes("proprietor") || s === "sp") return "Sole Prop";
     if (s.includes("partner")) return "Partnership";
     if (s.includes("llc") || s.includes("l.l.c")) return "LLC";
@@ -1412,7 +1412,7 @@
         $("#bulkResults").hidden = false;
         $("#bulkImportBtn").hidden = false;
         $("#bulkResetBtn").hidden = false;
-        $("#bulkSubtitle").textContent = "Parsed " + bulkParsed.length + " record" + (bulkParsed.length !== 1 ? "s" : "") + " from " + escapeHtml(file.name) + ". Review, then import.";
+        $("#bulkSubtitle").textContent = "Parsed " + bulkParsed.length + " record" + (bulkParsed.length !== 1 ? "s" : "") + " from " + file.name + ". Review, then import.";
         renderBulkPreview();
       } catch (err) {
         alert("CSV parse error: " + err.message);
