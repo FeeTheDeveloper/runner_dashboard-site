@@ -1167,10 +1167,15 @@
 
   // ---------- Bulk CSV Upload ----------
 
+  // Normalise a string to space-separated tokens, wrapped in leading/trailing
+  // spaces so that word-boundary checks work with a simple includes() call.
+  function normTokens(str) {
+    return " " + String(str || "").toLowerCase().replace(/[^a-z0-9]+/g, " ") + " ";
+  }
+
   // Classification: keyword → sector.
-  // Keywords are matched against a normalised haystack where every run of
-  // non-alphanumeric characters is replaced by a single space and the string
-  // is wrapped in spaces, so "bar" won't match inside "barbaric".
+  // Keywords are pre-normalised once at load time; the same normalisation is
+  // applied to the haystack so "bar" won't match inside "barbaric".
   const CLASSIFICATION_RULES = [
     { cls: "Technology",        cssClass: "cls-technology",    keywords: ["tech","software","it","digital","web","webapp","saas","cyber","database","cloud","gaming","coding","developer","devops","computer","hardware","electronics","telecom","network","infosec","artificial intelligence","machine learning"] },
     { cls: "Healthcare",        cssClass: "cls-healthcare",    keywords: ["health","medical","dental","pharma","biotech","clinic","hospital","therapy","wellness","mental","vision","rehab","nursing","physician","doctor","nurse","lab","laboratory"] },
@@ -1182,22 +1187,21 @@
     { cls: "Professional Svcs", cssClass: "cls-professional",  keywords: ["consulting","law firm","legal","attorney","marketing","advertising","staffing","human resource","management","recruitment","research","training","coaching","engineering services"] },
     { cls: "Transportation",    cssClass: "cls-transportation",keywords: ["transport","logistics","delivery","freight","trucking","moving","fleet","courier","shipping","warehouse","supply chain","auto repair","vehicle"] },
     { cls: "Manufacturing",     cssClass: "cls-manufacturing", keywords: ["manufacturing","production","factory","fabrication","assembly","industrial","machining","printing","packaging","chemical","materials","metal","steel","plastics"] },
-  ];
-
-  // Normalise a string to space-separated tokens, wrapped in leading/trailing
-  // spaces so that word-boundary checks work with a simple includes() call.
-  function normTokens(str) {
-    return " " + String(str || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() + " ";
-  }
+  ].map((rule) => ({ ...rule, keywords: rule.keywords.map(normTokens) }));
 
   function classifyBusiness(industry, name) {
     const haystack = normTokens((industry || "") + " " + (name || ""));
     for (const rule of CLASSIFICATION_RULES) {
-      for (const kw of rule.keywords) {
-        if (haystack.includes(normTokens(kw))) return rule;
+      for (const normKw of rule.keywords) {
+        if (haystack.includes(normKw)) return rule;
       }
     }
     return { cls: "Other", cssClass: "cls-other", keywords: [] };
+  }
+
+  // Helper: pluralise "business / businesses"
+  function fmtBusinessCount(n) {
+    return n + " Business" + (n !== 1 ? "es" : "");
   }
 
   // Robust CSV parser (handles quoted fields, newlines in quotes, large files)
@@ -1370,7 +1374,7 @@
 
     const selCount = bulkParsed.filter((r) => r.selected).length;
     $("#bulkRowCount").textContent = rows.length + " row" + (rows.length !== 1 ? "s" : "") + " shown";
-    $("#bulkImportBtn").textContent = "Import " + selCount + " Business" + (selCount !== 1 ? "es" : "");
+    $("#bulkImportBtn").textContent = "Import " + fmtBusinessCount(selCount);
     // Select-all state
     const allChecked = rows.length > 0 && rows.every((r) => r.selected);
     $("#bulkSelectAll").checked = allChecked;
@@ -1480,7 +1484,7 @@
       cb.checked = checked;
     });
     const selCount = bulkParsed.filter((r) => r.selected).length;
-    $("#bulkImportBtn").textContent = "Import " + selCount + " Business" + (selCount !== 1 ? "es" : "");
+    $("#bulkImportBtn").textContent = "Import " + fmtBusinessCount(selCount);
   });
 
   // Individual row checkbox (event delegation)
@@ -1495,7 +1499,7 @@
     $("#bulkSelectAll").checked = allChecked;
     $("#bulkSelectAll").indeterminate = !allChecked && visible.some((cb) => cb.checked);
     const selCount = bulkParsed.filter((r) => r.selected).length;
-    $("#bulkImportBtn").textContent = "Import " + selCount + " Business" + (selCount !== 1 ? "es" : "");
+    $("#bulkImportBtn").textContent = "Import " + fmtBusinessCount(selCount);
   });
 
   // Reset (re-upload)
@@ -1505,9 +1509,10 @@
   $("#bulkImportBtn").addEventListener("click", () => {
     const toImport = bulkParsed.filter((r) => r.selected);
     if (toImport.length === 0) { alert("Select at least one business to import."); return; }
-    if (!confirm("Import " + toImport.length + " business" + (toImport.length !== 1 ? "es" : "") + "?")) return;
+    if (!confirm("Import " + fmtBusinessCount(toImport.length) + "?")) return;
     toImport.forEach((rec) => {
       const newBusiness = seedBusiness(rec.name, rec.type, rec.industry, rec.ein, rec.formed || null);
+      newBusiness.classification = rec.classification;
       state.businesses.push(newBusiness);
       log("biz", "Bulk imported: " + rec.name + " [" + rec.classification + "]");
     });
