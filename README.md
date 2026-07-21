@@ -31,6 +31,29 @@ You can also preview the site with Cloudflare Pages locally:
 npm run cf:dev
 ```
 
+## GitHub Agent API token setup
+
+Never commit personal access tokens to this repository.
+
+If a token was pasted into chat, logs, or code, revoke it immediately and create a replacement token with minimum required scopes.
+
+### Local development
+
+1. Copy `.env.example` to `.env` (or `.dev.vars` for Wrangler local secrets).
+2. Set `GITHUB_AGENT_API_TOKEN` to your new token value.
+
+### GitHub Actions
+
+Set a repository secret named `GITHUB_AGENT_API_TOKEN`.
+
+### Cloudflare secret
+
+If you need the token in a Worker runtime, store it as a Wrangler secret:
+
+```sh
+npx wrangler secret put GITHUB_AGENT_API_TOKEN
+```
+
 1. Click **+ Business** and fill in the details.
 2. Toggle checklist items as you complete each setup step.
 3. Add Net 30 vendors, bank accounts, and credit scores as they come in.
