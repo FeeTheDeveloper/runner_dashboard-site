@@ -67,11 +67,29 @@
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.businesses)) return parsed;
+      }
     } catch (e) {
       console.warn("state load failed", e);
     }
-    return { businesses: [], activeId: null, activity: [] };
+
+    const businesses = defaultBusinessSeeds().map((spec) =>
+      seedBusiness(spec.name, spec.type, spec.industry, spec.ein, spec.formed)
+    );
+    return {
+      businesses,
+      activeId: businesses[0] ? businesses[0].id : null,
+      activity: [
+        {
+          id: uid(),
+          ts: Date.now(),
+          tag: "biz",
+          msg: "Loaded starter roster from the business folders.",
+        },
+      ],
+    };
   }
   function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -106,6 +124,91 @@
   }
   function daysBetween(a, b) {
     return Math.round((b - a) / (1000 * 60 * 60 * 24));
+  }
+
+  function inferIndustryFromName(name) {
+    const n = String(name || "").toLowerCase();
+    if (/tech|software|digital|ai|api|gemini|coding|developer/.test(n)) return "Technology";
+    if (/staffing|management|consult|associate|methods|solutions|contracts|forms/.test(n)) return "Professional Services";
+    if (/transport|logistics|freight|towing|ride share|mobile exchange|auto|rental|trucking|supply/.test(n)) return "Transportation";
+    if (/real estate|property|holdings|investments|ranch/.test(n)) return "Real Estate & Holdings";
+    if (/media|branding|creators|publishing|marketing|links|know before you go/.test(n)) return "Media & Marketing";
+    if (/cleaning|maid|recovery|security|vet|gang|crew/.test(n)) return "Services";
+    if (/wireless|phone|telecom/.test(n)) return "Retail & Telecom";
+    if (/auto|dealer|vehicle/.test(n)) return "Automotive";
+    if (/analytics/.test(n)) return "Analytics";
+    if (/government|govt|secretary|sba|sam/.test(n)) return "Government & Compliance";
+    return "General Operations";
+  }
+
+  function defaultBusinessSeeds() {
+    const names = [
+      "54 Bravo auto",
+      "6639 Staffing",
+      "API",
+      "Apps",
+      "Bean Stalk Auto Group",
+      "C-Walk",
+      "Deploy Property Solutions",
+      "Distro",
+      "Dukeel Transportation",
+      "Fee The Developer",
+      "Fee The Producer",
+      "Feecom",
+      "Feenag Links",
+      "Feepost Software",
+      "Filing Forms",
+      "Gemini",
+      "Ghost Creators",
+      "Govt contracts_",
+      "Hamilton Stategies",
+      "Honey Bee Online Solutions",
+      "Hutchrok Solutions Files",
+      "Know Before You Go",
+      "KnowB4Ugo",
+      "LOVINGTHECREW",
+      "Mackpost Management",
+      "Methods",
+      "Metro are",
+      "Montana Files",
+      "Play On Deck AI",
+      "Play Runner Holdings Corp",
+      "Play Runners",
+      "Plays Ranch",
+      "PMRG Media & Publishing",
+      "POD Ride share rental",
+      "Postell & Lancaster Holdings",
+      "Postell ^Assioxiate",
+      "PR Wireless Supply & Repair",
+      "PRT Logistics &Freight",
+      "real Plays Investments and holdings",
+      "Ross",
+      "Run down",
+      "Rundot Real estate",
+      "Runner gang life",
+      "Runner Mobile Exchange",
+      "Runner Tech",
+      "Runners Circle Branding",
+      "Runners Maid Cleaning",
+      "Runners Sports & Analytics",
+      "Runners Towing",
+      "Screaming Eagles Recovery",
+      "Scripts and Trips",
+      "Sharde Williams",
+      "State of the Secretary",
+      "uvea",
+      "Vet Gang",
+      "Vicky Lash",
+      "Vizz",
+    ];
+
+    return names.map((name) => ({
+      name,
+      type: "LLC",
+      industry: inferIndustryFromName(name),
+      ein: "",
+      formed: null,
+    }));
   }
 
   // ---------- Business helpers ----------
@@ -557,6 +660,66 @@
     if (!key) return "—";
     if (key.length <= MASK_VISIBLE_CHARS) return "••••";
     return "••••" + key.slice(-MASK_VISIBLE_CHARS);
+  }
+
+  function rosterRows() {
+    return state.businesses.map((b) => ({
+      name: b.name || "",
+      type: b.type || "",
+      industry: b.industry || "",
+      ein: b.ein || "",
+      formed: b.formed || "",
+      active: b.id === state.activeId ? "yes" : "no",
+    }));
+  }
+
+  function csvEscape(value) {
+    const text = String(value ?? "");
+    return /[",\n\r]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+  }
+
+  function downloadText(filename, text, mimeType) {
+    const blob = new Blob([text], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportRosterJson() {
+    downloadText(
+      "business-roster-" + new Date().toISOString().slice(0, 10) + ".json",
+      JSON.stringify({
+        exportedAt: new Date().toISOString(),
+        source: "runner_dashboard-site",
+        businesses: rosterRows(),
+      }, null, 2),
+      "application/json"
+    );
+  }
+
+  function exportRosterCsv() {
+    const header = ["name", "type", "industry", "ein", "formed", "active"];
+    const lines = [header.join(",")];
+    rosterRows().forEach((row) => {
+      lines.push([
+        row.name,
+        row.type,
+        row.industry,
+        row.ein,
+        row.formed,
+        row.active,
+      ].map(csvEscape).join(","));
+    });
+    downloadText(
+      "business-roster-" + new Date().toISOString().slice(0, 10) + ".csv",
+      lines.join("\n"),
+      "text/csv"
+    );
   }
 
   function renderApiConfigs() {
@@ -1144,6 +1307,8 @@
     a.remove();
     URL.revokeObjectURL(url);
   });
+  $("#exportRosterJsonBtn").addEventListener("click", exportRosterJson);
+  $("#exportRosterCsvBtn").addEventListener("click", exportRosterCsv);
   $("#importBtn").addEventListener("click", () => $("#importFile").click());
   $("#importFile").addEventListener("change", (e) => {
     const file = e.target.files[0];
