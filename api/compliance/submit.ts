@@ -4,7 +4,7 @@ import type { BusinessProfile } from '../../modules/compliance/types';
 export const config = { runtime: 'edge' };
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
-const NON_ALPHANUMERIC_PATTERN = /[^a-z0-9]+/g;
+const NON_SLUG_CHARACTER_PATTERN = /[^a-z0-9]+/g;
 const EDGE_DASH_PATTERN = /^-|-$/g;
 
 function json(status: number, data: unknown) {
@@ -31,10 +31,10 @@ function normalizeBusinessId(id: unknown, legalName: string) {
 
   const fallback = legalName
     .toLowerCase()
-    .replace(NON_ALPHANUMERIC_PATTERN, '-')
+    .replace(NON_SLUG_CHARACTER_PATTERN, '-')
     .replace(EDGE_DASH_PATTERN, '');
 
-  return fallback || 'business';
+  return fallback || `business-${crypto.randomUUID()}`;
 }
 
 function toBusinessProfile(payload: Record<string, unknown>): BusinessProfile {

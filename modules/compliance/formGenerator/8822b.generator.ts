@@ -11,6 +11,10 @@ const EIN_Y = 680;
 const OLD_ADDRESS_Y = 640;
 const NEW_ADDRESS_Y = 620;
 
+/**
+ * Builds a minimal IRS 8822-B PDF preview with the business name, EIN, and
+ * old/new address fields placed in a fixed top-of-page layout.
+ */
 export const generate8822B = async (data: BusinessProfile) => {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);

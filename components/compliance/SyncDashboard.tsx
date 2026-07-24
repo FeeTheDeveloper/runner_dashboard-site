@@ -7,14 +7,6 @@ import { FilingCard } from './FilingCard';
 import { normalizeStatus } from '../../modules/compliance/tracker/status.engine';
 import type { BusinessProfile, ComplianceResults } from '../../modules/compliance/types';
 
-const sampleBusiness: BusinessProfile = {
-  id: 'test-llc',
-  legalName: 'Test LLC',
-  ein: '12-3456789',
-  oldAddress: 'Old Address',
-  newAddress: 'New Address',
-};
-
 const bureauLabels: Record<string, string> = {
   irs: 'IRS',
   comptroller: 'Texas Comptroller',
@@ -23,7 +15,11 @@ const bureauLabels: Record<string, string> = {
   dnb: 'D&B',
 };
 
-export function SyncDashboard() {
+type SyncDashboardProps = {
+  business: BusinessProfile;
+};
+
+export function SyncDashboard({ business }: SyncDashboardProps) {
   const [status, setStatus] = useState<ComplianceResults | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -36,7 +32,7 @@ export function SyncDashboard() {
       const res = await fetch('/api/compliance/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sampleBusiness),
+        body: JSON.stringify(business),
       });
 
       const data = await res.json();
