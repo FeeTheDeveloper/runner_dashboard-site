@@ -35,7 +35,7 @@ export function SyncDashboard() {
     try {
       const res = await fetch('/api/compliance/submit', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sampleBusiness),
       });
 

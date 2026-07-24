@@ -3,10 +3,14 @@ import type { BusinessProfile } from '../../modules/compliance/types';
 
 export const config = { runtime: 'edge' };
 
+const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
+const NON_ALPHANUMERIC_PATTERN = /[^a-z0-9]+/g;
+const EDGE_DASH_PATTERN = /^-|-$/g;
+
 function json(status: number, data: unknown) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
+    headers: JSON_HEADERS,
   });
 }
 
@@ -27,8 +31,8 @@ function normalizeBusinessId(id: unknown, legalName: string) {
 
   const fallback = legalName
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
+    .replace(NON_ALPHANUMERIC_PATTERN, '-')
+    .replace(EDGE_DASH_PATTERN, '');
 
   return fallback || 'business';
 }
