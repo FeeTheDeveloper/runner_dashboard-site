@@ -89,6 +89,39 @@ npm run cf:deploy
 
 This repo includes a `vercel.json` file that serves the static app from `public/`.
 
+### Environment variables
+
+Local:
+
+1. Copy `.env.example` to `.env.local`.
+2. Set real values (do not commit secrets).
+
+Vercel project:
+
+1. Connect this folder to the correct Vercel project:
+
+```sh
+npm run vercel:link
+```
+
+2. Pull the project’s remote env vars into `.env.local` (after you’ve set them in the Vercel dashboard or via `vercel env add`):
+
+```sh
+npm run vercel:env:pull
+```
+
+### Supabase auth (server)
+
+This repo includes an Edge Function at:
+
+- `/api/whoami`
+
+It expects:
+
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- (optional) `SUPABASE_JWKS_URL` (defaults to `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`)
+
 ### Vercel API path
 
 Use this base path for same-origin API calls:

@@ -5,11 +5,16 @@
   "description": "Static dashboard site configured for Cloudflare Workers static assets.",
   "scripts": {
     "dev": "http-server -p 8000 public",
+    "vercel:link": "vercel link",
+    "vercel:env:pull": "vercel env pull .env.local",
     "vercel:dev": "vercel dev",
     "vercel:build": "vercel build",
     "vercel:deploy": "vercel deploy --prod",
     "cf:dev": "wrangler dev",
     "cf:deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@supabase/server": "^1.4.1"
   },
   "devDependencies": {
     "http-server": "^14.1.1",
