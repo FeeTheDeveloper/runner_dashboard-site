@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Hutchrok Holdings",
+    "type": "parent",
+    "paydex": 80,
+    "tradelines": 8,
+    "revenue": 150000
+  },
+  {
+    "name": "Runner Gang Lifestyle",
+    "type": "operating",
+    "paydex": 65,
+    "tradelines": 3,
+    "revenue": 40000
+  }
+]

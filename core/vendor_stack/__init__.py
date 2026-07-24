@@ -1,0 +1,1 @@
+"""Vendor stack catalog helpers."""

@@ -1,0 +1,19 @@
+{
+  "tier_1": [
+    {"name": "Uline", "net": 30, "reports": true},
+    {"name": "Quill", "net": 30, "reports": true},
+    {"name": "Grainger", "net": 30, "reports": true}
+  ],
+  "tier_2": [
+    {"name": "Staples Business", "type": "store_card"},
+    {"name": "Amazon Net", "type": "revolving"}
+  ],
+  "tier_3": [
+    {"name": "Abound", "net": 60},
+    {"name": "Faire", "net": 60}
+  ],
+  "tier_4": [
+    {"name": "Amex Business", "type": "charge"},
+    {"name": "Chase Ink", "type": "revolving"}
+  ]
+}
