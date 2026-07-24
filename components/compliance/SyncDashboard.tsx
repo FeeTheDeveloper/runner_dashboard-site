@@ -38,12 +38,12 @@ export function SyncDashboard({ business }: SyncDashboardProps) {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data?.error || 'Compliance sync failed');
+        throw new Error(data?.error || `Compliance sync failed (HTTP ${res.status})`);
       }
 
       setStatus(data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Compliance sync failed');
+      setError(err instanceof Error ? err.message : 'Compliance sync failed (network error)');
     } finally {
       setIsRunning(false);
     }
