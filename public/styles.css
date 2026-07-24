@@ -388,6 +388,82 @@ label.inline input[type="checkbox"] { width: auto; accent-color: var(--accent); 
   max-width: 860px;
   width: 100%;
 }
+
+/* ---- Assistant ---- */
+.assistant-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.assistant-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.assistant-head-actions {
+  display: flex;
+  gap: 8px;
+}
+.assistant-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.assistant-log {
+  height: min(60vh, 520px);
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 10px;
+}
+.assistant-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  margin: 8px 0;
+}
+.assistant-msg.user {
+  background: rgba(99, 102, 241, 0.18);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+.assistant-msg.assistant {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+}
+.assistant-msg.system {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.assistant-msg-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.assistant-role {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+}
+.assistant-ts {
+  font-size: 11px;
+  color: var(--muted);
+}
+.assistant-text {
+  white-space: pre-wrap;
+  line-height: 1.35;
+}
+.assistant-compose {
+  display: flex;
+  gap: 10px;
+}
+.assistant-compose input {
+  flex: 1;
+}
 .bulk-header { margin-bottom: 14px; }
 .bulk-header h2 { margin: 0 0 4px; font-size: 16px; }
 .bulk-header-sub { color: var(--muted); font-size: 13px; }

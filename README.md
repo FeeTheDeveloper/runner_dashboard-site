@@ -115,12 +115,23 @@ npm run vercel:env:pull
 This repo includes an Edge Function at:
 
 - `/api/whoami`
+- `/api/supabase`
 
 It expects:
 
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
 - (optional) `SUPABASE_JWKS_URL` (defaults to `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`)
+
+`/api/supabase` supports `POST` operations like `{ "op": "whoami" }` and basic `select`/`upsert` (user-auth required).
+
+### GitHub agent endpoint (server)
+
+This repo includes an Edge Function proxy at:
+
+- `/api/github`
+
+It requires `GITHUB_AGENT_API_TOKEN` to be set in Vercel env vars (server-only). The UI assistant can use it to fetch your GitHub user (`github me`) or create an issue (`github issue owner/repo "Title" "Body"`).
 
 ### Vercel API path
 

@@ -6,6 +6,7 @@
   "use strict";
 
   const STORAGE_KEY = "business-dashboard-v1";
+  const ASSISTANT_KEY = "business-dashboard-assistant-v1";
   const DEFAULT_CHECKLIST = [
     "EIN registered",
     "DUNS number obtained",
@@ -63,6 +64,21 @@
   // ---------- State ----------
   let state = load();
   let editing = { net30Id: null, bankId: null, platformKey: null, sbaCertId: null, apiConfigId: null };
+  let assistant = loadAssistant();
+
+  function loadAssistant() {
+    try {
+      const raw = localStorage.getItem(ASSISTANT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.messages)) return parsed;
+      }
+    } catch { /* ignore */ }
+    return { messages: [] };
+  }
+  function saveAssistant() {
+    localStorage.setItem(ASSISTANT_KEY, JSON.stringify(assistant));
+  }
 
   function load() {
     try {
@@ -103,6 +119,265 @@
   function activeBusiness() {
     return state.businesses.find((b) => b.id === state.activeId) || null;
   }
+
+  // ---------- Assistant ----------
+  function assistantPush(role, text) {
+    const msg = { id: uid(), ts: Date.now(), role, text: String(text ?? "") };
+    assistant.messages.push(msg);
+    if (assistant.messages.length > 200) assistant.messages = assistant.messages.slice(-200);
+    saveAssistant();
+    renderAssistant();
+  }
+
+  function assistantSummary() {
+    const b = activeBusiness();
+    if (!b) return "No active business selected.";
+    return [
+      'Active: "' + b.name + '"',
+      "Reminders: " + (b.reminders ? b.reminders.length : 0),
+      "Checklist: " + (b.checklist ? b.checklist.length : 0),
+      "Net30: " + (b.net30 ? b.net30.length : 0),
+      "Banking: " + (b.banking ? b.banking.length : 0),
+    ].join(" • ");
+  }
+
+  function renderAssistant() {
+    const logEl = $("#assistantLog");
+    const metaEl = $("#assistantMeta");
+    if (!logEl || !metaEl) return;
+
+    metaEl.textContent = assistantSummary();
+
+    logEl.innerHTML = "";
+    assistant.messages.forEach((m) => {
+      const wrap = document.createElement("div");
+      wrap.className = "assistant-msg " + (m.role || "assistant");
+
+      const top = document.createElement("div");
+      top.className = "assistant-msg-top";
+
+      const role = document.createElement("div");
+      role.className = "assistant-role";
+      role.textContent = m.role === "user" ? "You" : m.role === "system" ? "System" : "Assistant";
+
+      const ts = document.createElement("div");
+      ts.className = "assistant-ts";
+      ts.textContent = fmtTime(m.ts);
+
+      const text = document.createElement("div");
+      text.className = "assistant-text";
+      text.textContent = m.text;
+
+      top.appendChild(role);
+      top.appendChild(ts);
+      wrap.appendChild(top);
+      wrap.appendChild(text);
+      logEl.appendChild(wrap);
+    });
+
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function assistantHelpText() {
+    const due = fmtDateISO(Date.now() + 7 * 24 * 60 * 60 * 1000) || "YYYY-MM-DD";
+    return [
+      "Things I can do:",
+      "- read state (say: summary)",
+      "- export / import (say: export, or paste JSON after: import)",
+      '- add checklist item: add checklist "Open business bank account"',
+      '- add reminder: add reminder "Pay sales tax" due ' + due,
+      "- Supabase: supabase whoami, or supabase select <table> [columns] [limit]",
+      "- GitHub: github me, or github issue owner/repo \"Title\" \"Body\"",
+    ].join("\n");
+  }
+
+  function parseQuotedArgs(s) {
+    const out = [];
+    const re = /\"([^\"]*)\"|'([^']*)'|(\\S+)/g;
+    let m;
+    while ((m = re.exec(s))) out.push(m[1] ?? m[2] ?? m[3]);
+    return out;
+  }
+
+  function tryParseDateToken(token) {
+    const v = String(token || "").trim();
+    if (!v) return null;
+    if (/^\\d{4}-\\d{2}-\\d{2}$/.test(v)) return v;
+    const dt = new Date(v);
+    if (!Number.isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+    return null;
+  }
+
+  async function assistantGitHub(opLine) {
+    const args = parseQuotedArgs(opLine);
+    const sub = (args[1] || "").toLowerCase();
+
+    if (sub === "me") {
+      const res = await fetch("/api/github", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ method: "GET", path: "/user" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "GitHub request failed");
+      return "GitHub user: " + (json?.login || "unknown");
+    }
+
+    if (sub === "issue") {
+      const repo = args[2];
+      const title = args[3] || "New issue";
+      const body = args[4] || "";
+      if (!repo || !repo.includes("/")) return 'Usage: github issue owner/repo "Title" "Body"';
+
+      const res = await fetch("/api/github", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          method: "POST",
+          path: "/repos/" + repo + "/issues",
+          body: { title, body },
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "GitHub issue create failed");
+      return "Created issue #" + json.number + ": " + json.title;
+    }
+
+    return 'Try: github me  OR  github issue owner/repo "Title" "Body"';
+  }
+
+  async function assistantSupabase(opLine) {
+    const args = parseQuotedArgs(opLine);
+    const sub = (args[1] || "").toLowerCase();
+    if (sub === "whoami") {
+      const res = await fetch("/api/supabase", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ op: "whoami" }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return "Supabase whoami failed: " + (json?.error || res.status);
+      if (!json?.userClaims) return "No user claims returned (send Authorization: Bearer <access_token>).";
+      return "Supabase user: " + (json.userClaims?.sub || "unknown");
+    }
+    if (sub === "select") {
+      const table = args[2];
+      const columns = args[3] || "*";
+      const limit = args[4] ? Number(args[4]) : 25;
+      if (!table) return 'Usage: supabase select table [columns="*"] [limit=25]';
+
+      const res = await fetch("/api/supabase", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ op: "select", table, columns, limit }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return "Supabase select failed: " + (json?.error || res.status);
+      return "Supabase select ok (" + (json?.data ? json.data.length : 0) + " row(s)).";
+    }
+    return "Try: supabase whoami  OR  supabase select <table> [columns] [limit]";
+  }
+
+  async function assistantHandle(text) {
+    const line = String(text || "").trim();
+    const lower = line.toLowerCase();
+
+    if (!line) return;
+
+    if (lower === "help" || lower === "?") return assistantHelpText();
+    if (lower === "summary" || lower === "status") return assistantSummary();
+
+    if (lower === "export") {
+      $("#exportBtn").click();
+      return "Exported dashboard JSON.";
+    }
+
+    if (lower.startsWith("import ")) {
+      const payload = line.slice("import ".length).trim();
+      try {
+        const parsed = JSON.parse(payload);
+        if (!parsed || !Array.isArray(parsed.businesses)) return "That JSON doesn't look like a dashboard export (missing businesses[]).";
+        state = parsed;
+        save();
+        render();
+        return "Imported dashboard JSON.";
+      } catch (e) {
+        return "Import failed: invalid JSON (" + e.message + ").";
+      }
+    }
+
+    if (lower.startsWith("add checklist")) {
+      const args = parseQuotedArgs(line);
+      const item = args.slice(2).join(" ").trim();
+      if (!item) return 'Usage: add checklist "Checklist item"';
+      const b = activeBusiness();
+      if (!b) return "No active business selected.";
+      b.checklist.push({ id: uid(), text: item, done: false });
+      log("task", 'Added checklist item "' + item + '"');
+      persist();
+      return 'Added checklist item: "' + item + '"';
+    }
+
+    if (lower.startsWith("add reminder")) {
+      const args = parseQuotedArgs(line);
+      const b = activeBusiness();
+      if (!b) return "No active business selected.";
+
+      const dueIdx = args.findIndex((x) => String(x).toLowerCase() === "due");
+      const titleParts = dueIdx === -1 ? args.slice(2) : args.slice(2, dueIdx);
+      const title = titleParts.join(" ").trim();
+      const dueToken = dueIdx === -1 ? null : args[dueIdx + 1];
+      const due = tryParseDateToken(dueToken) || fmtDateISO(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      if (!title) return 'Usage: add reminder "Title" due YYYY-MM-DD';
+      if (!due) return "Please provide a due date like 2026-08-15.";
+
+      b.reminders.push({ id: uid(), title, due, notes: "", done: false });
+      log("task", 'Added reminder "' + title + '" due ' + fmtDate(due));
+      persist();
+      return 'Added reminder: "' + title + '" due ' + due;
+    }
+
+    if (lower.startsWith("github")) return await assistantGitHub(line);
+    if (lower.startsWith("supabase")) return await assistantSupabase(line);
+
+    return 'Say "help" for commands.';
+  }
+
+  function bindAssistantUi() {
+    const btn = $("#assistantBtn");
+    const form = $("#assistantForm");
+    const input = $("#assistantInput");
+    const clearBtn = $("#assistantClearBtn");
+
+    if (btn) btn.addEventListener("click", () => {
+      openModal("modalAssistant");
+      if (assistant.messages.length === 0) assistantPush("assistant", assistantHelpText());
+      setTimeout(() => input && input.focus(), 0);
+      renderAssistant();
+    });
+
+    if (clearBtn) clearBtn.addEventListener("click", () => {
+      if (!confirm("Clear assistant chat?")) return;
+      assistant.messages = [];
+      saveAssistant();
+      assistantPush("assistant", assistantHelpText());
+    });
+
+    if (form) form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = (input && input.value) ? input.value : "";
+      if (!text.trim()) return;
+      if (input) input.value = "";
+
+      assistantPush("user", text);
+      try {
+        const reply = await assistantHandle(text);
+        if (reply) assistantPush("assistant", reply);
+      } catch (err) {
+        assistantPush("system", "Error: " + (err && err.message ? err.message : String(err)));
+      }
+    });
+  }
   function log(tag, msg) {
     state.activity.unshift({ id: uid(), ts: Date.now(), tag, msg });
     if (state.activity.length > 200) state.activity.length = 200;
@@ -121,6 +396,16 @@
     const hh = String(d.getHours()).padStart(2, "0");
     const mm = String(d.getMinutes()).padStart(2, "0");
     return hh + ":" + mm;
+  }
+  function fmtDateISO(d) {
+    if (!d) return "";
+    try {
+      const dt = new Date(d);
+      if (Number.isNaN(dt.getTime())) return "";
+      return dt.toISOString().slice(0, 10);
+    } catch {
+      return "";
+    }
   }
   function daysBetween(a, b) {
     return Math.round((b - a) / (1000 * 60 * 60 * 24));
@@ -1705,4 +1990,6 @@
   if (!state.activeId && state.businesses[0]) state.activeId = state.businesses[0].id;
   save();
   render();
+  bindAssistantUi();
+  renderAssistant();
 })();

@@ -15,6 +15,7 @@
     <div class="topbar-actions">
       <select id="businessSelect" class="select" aria-label="Active business"></select>
       <button class="btn btn-primary" id="addBusinessBtn">+ Business</button>
+      <button class="btn" id="assistantBtn" title="Assistant">Assistant</button>
       <button class="btn" id="exportBtn" title="Export JSON">Export</button>
       <button class="btn" id="exportRosterJsonBtn" title="Export business roster as JSON">Roster JSON</button>
       <button class="btn" id="exportRosterCsvBtn" title="Export business roster as CSV">Roster CSV</button>
@@ -535,6 +536,28 @@
         <button class="btn" id="bulkResetBtn" hidden>← Re-upload</button>
         <button class="btn btn-primary" id="bulkImportBtn" hidden>Import Selected</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal: assistant -->
+  <div class="modal" id="modalAssistant" hidden>
+    <div class="modal-card modal-card-wide assistant-card">
+      <div class="assistant-head">
+        <h2>Assistant</h2>
+        <div class="assistant-head-actions">
+          <button class="btn btn-small" id="assistantClearBtn" title="Clear chat">Clear</button>
+          <button class="btn btn-small" data-close>Close</button>
+        </div>
+      </div>
+
+      <div class="assistant-meta" id="assistantMeta"></div>
+
+      <div class="assistant-log" id="assistantLog" aria-live="polite" aria-label="Assistant chat log"></div>
+
+      <form class="assistant-compose" id="assistantForm">
+        <input id="assistantInput" type="text" placeholder="Try: add reminder “Pay sales tax” due 2026-08-15" autocomplete="off" />
+        <button class="btn btn-primary" id="assistantSendBtn" type="submit">Send</button>
+      </form>
     </div>
   </div>
 
