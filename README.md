@@ -89,6 +89,16 @@ npm run cf:deploy
 
 This repo includes a `vercel.json` file that serves the static app from `public/`.
 
+### Vercel API path
+
+Use this base path for same-origin API calls:
+
+- `/api`
+
+If you need an absolute URL (external client or webhook target), use:
+
+- `https://<your-vercel-domain>/api`
+
 ### Automatic deploys (GitHub Actions)
 
 Every push to `main` (production) and pull request to `main` (preview) runs `.github/workflows/vercel-deploy.yml`.
