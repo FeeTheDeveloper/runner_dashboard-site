@@ -5,6 +5,7 @@ import type { BusinessProfile } from '../types';
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
 const LEFT_MARGIN = 50;
+// PDF coordinates are measured from the bottom-left corner on a US Letter page.
 const TITLE_Y = 750;
 const BUSINESS_Y = 700;
 const EIN_Y = 680;

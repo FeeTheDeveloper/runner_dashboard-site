@@ -5,7 +5,7 @@ export const config = { runtime: 'edge' };
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
 const NON_SLUG_CHARACTER_REGEX = /[^a-z0-9]+/g;
-const EDGE_DASH_REGEX = /^-|-$/g;
+const LEADING_TRAILING_DASH_REGEX = /^-|-$/g;
 
 function json(status: number, data: unknown) {
   return new Response(JSON.stringify(data), {
@@ -32,7 +32,7 @@ function normalizeBusinessId(id: unknown, legalName: string) {
   const fallback = legalName
     .toLowerCase()
     .replace(NON_SLUG_CHARACTER_REGEX, '-')
-    .replace(EDGE_DASH_REGEX, '');
+    .replace(LEADING_TRAILING_DASH_REGEX, '');
 
   return fallback || crypto.randomUUID();
 }
