@@ -31,13 +31,19 @@ You can also preview the site with Cloudflare Pages locally:
 npm run cf:dev
 ```
 
+You can preview the site with Vercel locally:
+
+```sh
+npm run vercel:dev
+```
+
 ## GitHub Agent API token setup
 
 Never commit personal access tokens to this repository.
 
 If a token was pasted into chat, logs, or code, revoke it immediately and create a replacement token with minimum required scopes.
 
-### Local development
+### Token setup in local development
 
 1. Copy `.env.example` to `.env` (or `.dev.vars` for Wrangler local secrets).
 2. Set `GITHUB_AGENT_API_TOKEN` to your new token value.
@@ -64,7 +70,7 @@ npx wrangler secret put GITHUB_AGENT_API_TOKEN
 
 This repo is configured as a Cloudflare Worker serving static assets from `public/` (see `wrangler.jsonc`).
 
-### Automatic deploys (GitHub Actions)
+### Automatic Vercel deploys (GitHub Actions)
 
 Every push to `main` runs `.github/workflows/deploy.yml`:
 
@@ -77,6 +83,41 @@ Every push to `main` runs `.github/workflows/deploy.yml`:
 npm install
 npx wrangler login
 npm run cf:deploy
+```
+
+## Vercel deployment
+
+This repo includes a `vercel.json` file that serves the static app from `public/`.
+
+### Automatic deploys (GitHub Actions)
+
+Every push to `main` (production) and pull request to `main` (preview) runs `.github/workflows/vercel-deploy.yml`.
+
+Set these repository secrets before enabling automated deploys:
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
+
+### One-time setup
+
+```sh
+npm install
+npx vercel login
+npx vercel link
+```
+
+### Deploy preview
+
+```sh
+npm run vercel:build
+npx vercel deploy
+```
+
+### Deploy production
+
+```sh
+npm run vercel:deploy
 ```
 
 ## Files

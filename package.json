@@ -5,11 +5,15 @@
   "description": "Static dashboard site configured for Cloudflare Workers static assets.",
   "scripts": {
     "dev": "http-server -p 8000 public",
+    "vercel:dev": "vercel dev",
+    "vercel:build": "vercel build",
+    "vercel:deploy": "vercel deploy --prod",
     "cf:dev": "wrangler dev",
     "cf:deploy": "wrangler deploy"
   },
   "devDependencies": {
     "http-server": "^14.1.1",
+    "vercel": "^41.7.3",
     "wrangler": "^4.26.0"
   }
 }
