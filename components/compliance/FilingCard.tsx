@@ -9,7 +9,7 @@ export function FilingCard({ title, status }: FilingCardProps) {
   return (
     <article>
       <h3>{title}</h3>
-      <p>{status}</p>
+      <p aria-label="Filing status">{status}</p>
     </article>
   );
 }
