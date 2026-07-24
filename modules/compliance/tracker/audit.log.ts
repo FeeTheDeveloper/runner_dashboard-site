@@ -1,6 +1,13 @@
 export type AuditEntry = {
   event: string;
-  createdAt: string;
+  createdAt: Date;
 };
 
-export const appendAuditLog = (log: AuditEntry[], entry: AuditEntry) => [...log, entry];
+export const appendAuditLog = (log: AuditEntry[], entry: AuditEntry, mutate = false) => {
+  if (mutate) {
+    log.push(entry);
+    return log;
+  }
+
+  return [...log, entry];
+};

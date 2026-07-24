@@ -4,7 +4,7 @@ const allowedStatuses: ComplianceStatus[] = ['pending', 'in_progress', 'complete
 
 export const resolveComplianceStatus = (
   status: string,
-  fallback: ComplianceStatus | null = 'failed'
+  fallback: ComplianceStatus | null = null
 ): ComplianceStatus => {
   if (allowedStatuses.includes(status as ComplianceStatus)) {
     return status as ComplianceStatus;
