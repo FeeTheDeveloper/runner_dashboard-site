@@ -12,7 +12,7 @@ A static, single-page dashboard for tracking multiple businesses and their key g
 - **Activity monitor** — timestamped feed of every action (task toggled, vendor added, score updated, etc.).
 - **Upcoming reminders** — track filing deadlines, payments, renewals; overdue / due-soon items are highlighted.
 - **Overview tiles** — total businesses, total Net 30 accounts (with approved count), average bureau score across the portfolio, total cash + available credit.
-- **Persistence & live sync** — state lives in `localStorage` under the `business-dashboard-v1` key; multiple tabs stay in sync via the `storage` event.
+- **Persistence & live sync** — state lives in `localStorage` under the `business-dashboard-v2` key; multiple tabs stay in sync via the `storage` event.
 - **Export / Import** — one-click JSON backup and restore.
 
 ## Local development
@@ -60,7 +60,7 @@ If you need the token in a Worker runtime, store it as a Wrangler secret:
 npx wrangler secret put GITHUB_AGENT_API_TOKEN
 ```
 
-1. Click **+ Business** and fill in the details.
+1. Start with an empty dashboard, then click **+ Business** and fill in the details.
 2. Toggle checklist items as you complete each setup step.
 3. Add Net 30 vendors, bank accounts, and credit scores as they come in.
 4. Add reminders for upcoming filings or payments.
