@@ -5,8 +5,10 @@
 (function () {
   "use strict";
 
-  const STORAGE_KEY = "business-dashboard-v1";
-  const ASSISTANT_KEY = "business-dashboard-assistant-v1";
+  const STORAGE_KEY = "business-dashboard-v2";
+  const ASSISTANT_KEY = "business-dashboard-assistant-v2";
+  const LEGACY_STORAGE_KEYS = ["business-dashboard-v1"];
+  const LEGACY_ASSISTANT_KEYS = ["business-dashboard-assistant-v1"];
   const DEFAULT_CHECKLIST = [
     "EIN registered",
     "DUNS number obtained",
@@ -90,22 +92,9 @@
     } catch (e) {
       console.warn("state load failed", e);
     }
-
-    const businesses = defaultBusinessSeeds().map((spec) =>
-      seedBusiness(spec.name, spec.type, spec.industry, spec.ein, spec.formed)
-    );
-    return {
-      businesses,
-      activeId: businesses[0] ? businesses[0].id : null,
-      activity: [
-        {
-          id: uid(),
-          ts: Date.now(),
-          tag: "biz",
-          msg: "Loaded starter roster from the business folders.",
-        },
-      ],
-    };
+    LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+    LEGACY_ASSISTANT_KEYS.forEach((key) => localStorage.removeItem(key));
+    return emptyState();
   }
   function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -426,74 +415,12 @@
     return "General Operations";
   }
 
-  function defaultBusinessSeeds() {
-    const names = [
-      "54 Bravo auto",
-      "6639 Staffing",
-      "API",
-      "Apps",
-      "Bean Stalk Auto Group",
-      "C-Walk",
-      "Deploy Property Solutions",
-      "Distro",
-      "Dukeel Transportation",
-      "Fee The Developer",
-      "Fee The Producer",
-      "Feecom",
-      "Feenag Links",
-      "Feepost Software",
-      "Filing Forms",
-      "Gemini",
-      "Ghost Creators",
-      "Govt contracts_",
-      "Hamilton Stategies",
-      "Honey Bee Online Solutions",
-      "Hutchrok Solutions Files",
-      "Know Before You Go",
-      "KnowB4Ugo",
-      "LOVINGTHECREW",
-      "Mackpost Management",
-      "Methods",
-      "Metro are",
-      "Montana Files",
-      "Play On Deck AI",
-      "Play Runner Holdings Corp",
-      "Play Runners",
-      "Plays Ranch",
-      "PMRG Media & Publishing",
-      "POD Ride share rental",
-      "Postell & Lancaster Holdings",
-      "Postell ^Assioxiate",
-      "PR Wireless Supply & Repair",
-      "PRT Logistics &Freight",
-      "real Plays Investments and holdings",
-      "Ross",
-      "Run down",
-      "Rundot Real estate",
-      "Runner gang life",
-      "Runner Mobile Exchange",
-      "Runner Tech",
-      "Runners Circle Branding",
-      "Runners Maid Cleaning",
-      "Runners Sports & Analytics",
-      "Runners Towing",
-      "Screaming Eagles Recovery",
-      "Scripts and Trips",
-      "Sharde Williams",
-      "State of the Secretary",
-      "uvea",
-      "Vet Gang",
-      "Vicky Lash",
-      "Vizz",
-    ];
-
-    return names.map((name) => ({
-      name,
-      type: "LLC",
-      industry: inferIndustryFromName(name),
-      ein: "",
-      formed: null,
-    }));
+  function emptyState() {
+    return {
+      businesses: [],
+      activeId: null,
+      activity: [],
+    };
   }
 
   // ---------- Business helpers ----------
