@@ -1,1 +1,0 @@
-"""Funding strategy helpers."""

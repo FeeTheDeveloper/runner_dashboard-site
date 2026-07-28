@@ -4,6 +4,7 @@ A static, single-page dashboard for tracking multiple businesses and their key g
 
 ## Features
 
+- **Assembly Line** — every business is auto-sorted into a pipeline station (Intake → Foundation Build → Mix Builder → Scaling) based on its checklist, tradelines, and PAYDEX score. Click a business in the line to see its prioritized next-step recommendations (High/Med/Low), computed by a set of read-only "agent" rules covering foundation setup, banking, compliance deadlines, credit refresh, and tier-appropriate vendor matches. Recommendations only — nothing is submitted or sent anywhere automatically.
 - **Business roster** — add multiple businesses (LLC / C-Corp / S-Corp / etc.), switch between them from the header selector.
 - **Business status checklist** — every new business is seeded with the standard setup checklist (EIN, DUNS, business address, bank account, listings, etc.). Add or remove items freely; checked items get a green check.
 - **Net 30 accounts** — track vendor name, status (approved / pending / denied / closed), credit limit, balance, opened date, and which bureaus each vendor reports to (D&B, Experian, Equifax).

@@ -63,10 +63,128 @@
     },
   };
 
+  // ---------- Assembly line: sorts businesses into pipeline stations and
+  // computes prioritized next-step recommendations. Pure/read-only — an
+  // "agent" here is just a function that inspects a business and returns
+  // findings; nothing here mutates state or submits anywhere.
+  const CRITICAL_CHECKLIST_ITEMS = ["EIN registered", "DUNS number obtained", "Business bank account opened"];
+
+  const TIER_INFO = {
+    tier_1: { label: "Tier 1 · Foundation", shortLabel: "T1", strategy: "Start with foundational Net 30 vendors" },
+    tier_2: { label: "Tier 2 · Mix Builder", shortLabel: "T2", strategy: "Add mix-builder store and revolving accounts" },
+    tier_3: { label: "Tier 3 · Scaling",     shortLabel: "T3", strategy: "Target stronger vendor accounts and better limits" },
+  };
+
+  const VENDOR_CATALOG = {
+    tier_1: [
+      { name: "Uline",  net: 30 },
+      { name: "Quill",  net: 30 },
+      { name: "Grainger", net: 30 },
+    ],
+    tier_2: [
+      { name: "Staples Business",     type: "store_card" },
+      { name: "Amazon Business Net",  type: "revolving" },
+    ],
+    tier_3: [
+      { name: "Abound", net: 60 },
+      { name: "Faire",  net: 60 },
+    ],
+  };
+
+  const STATIONS = [
+    { id: "intake",      label: "1 · Intake",         desc: "Foundational setup — EIN, address, bank account" },
+    { id: "foundation",  label: "2 · Foundation Build", desc: "First Net 30 tradelines (Tier 1)" },
+    { id: "mix_builder", label: "3 · Mix Builder",    desc: "Revolving + store card mix (Tier 2)" },
+    { id: "scaling",     label: "4 · Scaling",        desc: "Stronger vendors, PAYDEX 75+ (Tier 3)" },
+  ];
+
+  function computeTradelineCount(b) {
+    const approvedNet30 = (b.net30 || []).filter((n) => n.status === "approved").length;
+    const revolving = (b.bank || []).filter((a) => (a.type === "credit" || a.type === "loc") && a.status === "active").length;
+    return approvedNet30 + revolving;
+  }
+
+  function computeTier(b) {
+    const tradelines = computeTradelineCount(b);
+    const paydex = typeof b.credit.db === "number" ? b.credit.db : 0;
+    if (tradelines < 3) return "tier_1";
+    if (tradelines < 5 || paydex < 75) return "tier_2";
+    return "tier_3";
+  }
+
+  function computeStation(b) {
+    const list = b.checklist || [];
+    const pctDone = list.length ? list.filter((c) => c.done).length / list.length : 0;
+    if (pctDone < 0.5 || (b.bank || []).length === 0) return "intake";
+    const tier = computeTier(b);
+    if (tier === "tier_1") return "foundation";
+    if (tier === "tier_2") return "mix_builder";
+    return "scaling";
+  }
+
+  function computeNextSteps(b) {
+    const steps = [];
+    const push = (priority, agent, text) => steps.push({ priority, agent, text });
+
+    (b.checklist || []).forEach((item) => {
+      if (item.done) return;
+      const critical = CRITICAL_CHECKLIST_ITEMS.includes(item.label);
+      push(critical ? "high" : "medium", "Foundation", 'Complete "' + item.label + '"');
+    });
+
+    if ((b.bank || []).length === 0) {
+      push("high", "Banking", "Open a business bank account — required before tradelines can report.");
+    }
+
+    if (!b.ein) {
+      push("high", "Compliance", "Obtain an EIN — required for most bank, vendor, and government applications.");
+    }
+
+    const now = Date.now();
+    (b.reminders || []).forEach((r) => {
+      if (r.done) return;
+      const due = new Date(r.due).getTime();
+      if (Number.isNaN(due)) return;
+      const days = daysBetween(now, due);
+      if (days < 0) push("high", "Compliance", 'Overdue: "' + r.title + '" (was due ' + fmtDate(r.due) + ')');
+      else if (days <= 7) push("medium", "Compliance", 'Due soon: "' + r.title + '" (' + fmtDate(r.due) + ')');
+    });
+
+    if (b.gov && b.gov.sam && b.gov.sam.status === "not_registered") {
+      push("low", "Compliance", "Register with SAM.gov to unlock government contracting opportunities.");
+    }
+
+    const c = b.credit || {};
+    if (!c.updatedAt) {
+      push("medium", "Credit", "Pull baseline bureau scores (D&B, Experian, Equifax) to start tracking progress.");
+    } else {
+      const daysSince = daysBetween(c.updatedAt, now);
+      if (daysSince > 60) push("low", "Credit", "Refresh credit scores — last updated " + daysSince + "d ago.");
+    }
+
+    const tier = computeTier(b);
+    const haveVendors = new Set((b.net30 || []).map((n) => String(n.vendor || "").trim().toLowerCase()));
+    const candidates = (VENDOR_CATALOG[tier] || []).filter((v) => !haveVendors.has(v.name.toLowerCase()));
+    candidates.slice(0, 3).forEach((v) => {
+      const netTxt = v.net ? "Net " + v.net : (v.type || "vendor");
+      push("medium", "Vendor Match", "Apply to " + v.name + " (" + netTxt + ") — " + TIER_INFO[tier].strategy);
+    });
+
+    const tradelines = computeTradelineCount(b);
+    const paydex = typeof c.db === "number" ? c.db : 0;
+    if (tier === "tier_3" && tradelines >= 8 && paydex >= 85) {
+      push("low", "Funding", "Strong profile — apply for premium Tier 4 funding (Amex Business, Chase Ink).");
+    }
+
+    const weight = { high: 0, medium: 1, low: 2 };
+    return steps.sort((a, z) => weight[a.priority] - weight[z.priority]);
+  }
+
   // ---------- State ----------
   let state = load();
   let editing = { net30Id: null, bankId: null, platformKey: null, sbaCertId: null, apiConfigId: null };
   let assistant = loadAssistant();
+  let assemblySelectedId = null;
 
   function loadAssistant() {
     try {
@@ -475,6 +593,7 @@
     renderCredit();
     renderReminders();
     renderActivity();
+    renderAssemblyLine();
   }
 
   function renderBusinessSelect() {
@@ -1006,7 +1125,7 @@
       el.querySelector(".score").textContent = typeof val === "number" ? val : "—";
       const bar = el.querySelector(".credit-bar > span");
       bar.style.width = pct + "%";
-      bar.classList.add(band);
+      if (band) bar.classList.add(band);
       el.querySelector(".foot").textContent = "Max " + r.max;
       grid.appendChild(el);
     });
@@ -1099,6 +1218,178 @@
       li.appendChild(msg);
       list.appendChild(li);
     });
+  }
+
+  function renderAssemblyLine() {
+    const lineEl = $("#assemblyLine");
+    const metaEl = $("#assemblyMeta");
+    if (!lineEl || !metaEl) return;
+
+    metaEl.textContent = fmtBusinessCount(state.businesses.length);
+
+    lineEl.innerHTML = "";
+    if (state.businesses.length === 0) {
+      lineEl.innerHTML = '<div class="empty-state">Add a business to populate the assembly line.</div>';
+      $("#assemblyDetail").innerHTML = "";
+      return;
+    }
+
+    if (!assemblySelectedId || !state.businesses.some((b) => b.id === assemblySelectedId)) {
+      assemblySelectedId = state.activeId || state.businesses[0].id;
+    }
+
+    const grouped = {};
+    STATIONS.forEach((s) => { grouped[s.id] = []; });
+    state.businesses.forEach((b) => {
+      const station = computeStation(b);
+      const tier = computeTier(b);
+      const highCount = computeNextSteps(b).filter((s) => s.priority === "high").length;
+      grouped[station].push({ business: b, tier, highCount });
+    });
+
+    STATIONS.forEach((station, idx) => {
+      const col = document.createElement("div");
+      col.className = "station-col";
+
+      const belt = document.createElement("div");
+      belt.className = "station-belt";
+      col.appendChild(belt);
+
+      const head = document.createElement("div");
+      head.className = "station-head";
+      const label = document.createElement("span");
+      label.className = "station-label";
+      label.textContent = station.label;
+      const count = document.createElement("span");
+      count.className = "station-count chip chip-gray";
+      count.textContent = String(grouped[station.id].length);
+      head.appendChild(label);
+      head.appendChild(count);
+      col.appendChild(head);
+
+      const desc = document.createElement("div");
+      desc.className = "station-desc";
+      desc.textContent = station.desc;
+      col.appendChild(desc);
+
+      const cardsWrap = document.createElement("div");
+      cardsWrap.className = "station-cards";
+
+      if (grouped[station.id].length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "station-empty";
+        empty.textContent = "—";
+        cardsWrap.appendChild(empty);
+      } else {
+        grouped[station.id].forEach(({ business, tier, highCount }) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "station-biz" + (business.id === assemblySelectedId ? " active" : "");
+
+          const nameEl = document.createElement("span");
+          nameEl.className = "station-biz-name";
+          nameEl.textContent = business.name;
+
+          const badges = document.createElement("span");
+          badges.className = "station-biz-badges";
+          const tierChip = document.createElement("span");
+          tierChip.className = "chip chip-blue";
+          tierChip.textContent = TIER_INFO[tier].shortLabel;
+          badges.appendChild(tierChip);
+          if (highCount > 0) {
+            const dot = document.createElement("span");
+            dot.className = "alert-dot";
+            dot.title = highCount + " urgent item" + (highCount === 1 ? "" : "s");
+            dot.textContent = String(highCount);
+            badges.appendChild(dot);
+          }
+
+          btn.appendChild(nameEl);
+          btn.appendChild(badges);
+          btn.addEventListener("click", () => {
+            assemblySelectedId = business.id;
+            renderAssemblyLine();
+          });
+          cardsWrap.appendChild(btn);
+        });
+      }
+      col.appendChild(cardsWrap);
+      lineEl.appendChild(col);
+
+      if (idx < STATIONS.length - 1) {
+        const arrow = document.createElement("div");
+        arrow.className = "station-arrow";
+        arrow.textContent = "→";
+        arrow.setAttribute("aria-hidden", "true");
+        lineEl.appendChild(arrow);
+      }
+    });
+
+    renderAssemblyDetail();
+  }
+
+  function renderAssemblyDetail() {
+    const detailEl = $("#assemblyDetail");
+    if (!detailEl) return;
+    detailEl.innerHTML = "";
+    const b = state.businesses.find((x) => x.id === assemblySelectedId);
+    if (!b) return;
+
+    const tier = computeTier(b);
+    const stationInfo = STATIONS.find((s) => s.id === computeStation(b));
+    const steps = computeNextSteps(b);
+
+    const head = document.createElement("div");
+    head.className = "assembly-detail-head";
+    const h3 = document.createElement("h3");
+    h3.textContent = b.name + " — Next Steps";
+    const pill = document.createElement("span");
+    pill.className = "pill";
+    pill.textContent = TIER_INFO[tier].label + (stationInfo ? " · " + stationInfo.label : "");
+    head.appendChild(h3);
+    head.appendChild(pill);
+    detailEl.appendChild(head);
+
+    const list = document.createElement("div");
+    list.className = "next-steps-list";
+    if (steps.length === 0) {
+      const done = document.createElement("div");
+      done.className = "empty-state";
+      done.textContent = "No open action items — this business is fully on track.";
+      list.appendChild(done);
+    } else {
+      const MAX_SHOWN = 8;
+      const priorityLabel = { high: "High", medium: "Med", low: "Low" };
+      const priorityChip = { high: "chip-red", medium: "chip-yellow", low: "chip-gray" };
+      steps.slice(0, MAX_SHOWN).forEach((step) => {
+        const row = document.createElement("div");
+        row.className = "next-step " + step.priority;
+
+        const badge = document.createElement("span");
+        badge.className = "ns-badge chip " + priorityChip[step.priority];
+        badge.textContent = priorityLabel[step.priority];
+
+        const agent = document.createElement("span");
+        agent.className = "ns-agent";
+        agent.textContent = step.agent;
+
+        const text = document.createElement("span");
+        text.className = "ns-text";
+        text.textContent = step.text;
+
+        row.appendChild(badge);
+        row.appendChild(agent);
+        row.appendChild(text);
+        list.appendChild(row);
+      });
+      if (steps.length > MAX_SHOWN) {
+        const more = document.createElement("div");
+        more.className = "station-empty";
+        more.textContent = "+" + (steps.length - MAX_SHOWN) + " more item" + (steps.length - MAX_SHOWN === 1 ? "" : "s");
+        list.appendChild(more);
+      }
+    }
+    detailEl.appendChild(list);
   }
 
   // ---------- Persist + broadcast ----------
