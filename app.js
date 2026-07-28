@@ -180,10 +180,17 @@ function renderFolder(business) {
   folder.className = "folder" + (business.collapsed ? " collapsed" : "");
 
   // Header
-  const header = document.createElement("div");
-  header.className = "folder-header";
-  header.addEventListener("click", () => toggleFolder(business.id));
-
+const header = document.createElement("div");
+header.className = "folder-header";
+header.setAttribute("role", "button");
+header.tabIndex = 0;
+header.addEventListener("click", () => toggleFolder(business.id));
+header.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    toggleFolder(business.id);
+  }
+});
   const icon = document.createElement("span");
   icon.className = "folder-icon";
   icon.textContent = business.collapsed ? "📁" : "📂";
