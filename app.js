@@ -102,7 +102,8 @@ function removeTask(businessId, taskId) {
 function updateMetric(businessId, field, value) {
   const business = state.businesses.find((b) => b.id === businessId);
   if (!business) return;
-  const num = value === "" ? null : Number(value);
+  const parsed = Number(value);
+  const num = value === "" || !isFinite(parsed) ? null : parsed;
   if (field === "monthlyRevenue" && business.monthlyRevenue !== num) {
     business.prevRevenue = business.monthlyRevenue;
   }
@@ -263,7 +264,15 @@ header.addEventListener("keydown", (e) => {
 function renderTask(business, task) {
   const li = document.createElement("li");
   li.className = "task" + (task.done ? " done" : "");
+  li.setAttribute("role", "button");
+  li.tabIndex = 0;
   li.addEventListener("click", () => toggleTask(business.id, task.id));
+  li.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggleTask(business.id, task.id);
+    }
+  });
 
   const check = document.createElement("span");
   check.className = "check";
