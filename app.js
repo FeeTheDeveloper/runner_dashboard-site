@@ -24,7 +24,11 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    // Ignore persistence failures (quota/private mode) so the UI still works.
+  }
 }
 
 function uid() {
