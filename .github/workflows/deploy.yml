@@ -1,0 +1,56 @@
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Deploy to Cloudflare Workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_AGENT_API_TOKEN: ${{ secrets.GITHUB_AGENT_API_TOKEN }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            npx wrangler deploy
+          else
+            # No API token configured: deploy to a temporary preview account.
+            # The output contains a one-time claim URL, so keep it out of the
+            # public build log and upload it as a short-lived artifact instead.
+            npx wrangler deploy --temporary > deploy-output.txt 2>&1 || { cat deploy-output.txt; exit 1; }
+            grep -iv claim deploy-output.txt || true
+
+            URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy-output.txt | head -1)
+            echo "Deployed to: $URL"
+            for i in 1 2 3 4 5; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || true)
+              echo "Smoke test attempt $i: HTTP $STATUS"
+              [ "$STATUS" = "200" ] && break
+              sleep 5
+            done
+            [ "$STATUS" = "200" ]
+          fi
+
+      - name: Upload deployment info (contains one-time claim URL)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-urls
+          path: deploy-output.txt
+          retention-days: 1
+          if-no-files-found: ignore

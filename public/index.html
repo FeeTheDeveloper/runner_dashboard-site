@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Business Status Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot live" id="liveDot"></span>
+      <h1>Business Status Dashboard</h1>
+    </div>
+    <div class="topbar-actions">
+      <select id="businessSelect" class="select" aria-label="Active business"></select>
+      <button class="btn btn-primary" id="addBusinessBtn">+ Business</button>
+      <button class="btn" id="assistantBtn" title="Assistant">Assistant</button>
+      <button class="btn" id="exportBtn" title="Export JSON">Export</button>
+      <button class="btn" id="exportRosterJsonBtn" title="Export business roster as JSON">Roster JSON</button>
+      <button class="btn" id="exportRosterCsvBtn" title="Export business roster as CSV">Roster CSV</button>
+      <button class="btn" id="importBtn" title="Import JSON">Import</button>
+      <input type="file" id="importFile" accept="application/json" hidden />
+      <button class="btn btn-upload" id="uploadCsvBtn" title="Bulk upload CSV to classify businesses">⬆ Bulk Upload</button>
+      <input type="file" id="uploadCsvFile" accept=".csv,text/csv" hidden />
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- Overview / summary tiles -->
+    <section class="panel tiles" aria-label="Overview">
+      <div class="tile">
+        <div class="tile-label">Businesses</div>
+        <div class="tile-value" id="statBusinesses">0</div>
+        <div class="tile-foot" id="statBusinessesFoot">tracked</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Net 30 Accounts</div>
+        <div class="tile-value" id="statNet30">0</div>
+        <div class="tile-foot" id="statNet30Foot">0 approved</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Avg Credit Score</div>
+        <div class="tile-value" id="statCredit">—</div>
+        <div class="tile-foot" id="statCreditFoot">across bureaus</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Total Cash</div>
+        <div class="tile-value" id="statCash">$0</div>
+        <div class="tile-foot" id="statCashFoot">bank + cards available</div>
+      </div>
+    </section>
+
+    <!-- Assembly Line: sorts businesses into pipeline stations and computes next steps -->
+    <section class="panel assembly" aria-label="Assembly line">
+      <div class="card">
+        <div class="card-head">
+          <h2>Assembly Line</h2>
+          <span class="pill" id="assemblyMeta">—</span>
+        </div>
+        <div class="card-body">
+          <div class="assembly-line" id="assemblyLine"></div>
+          <div class="assembly-detail" id="assemblyDetail"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Left column: business status + net30 + banking + credit -->
+    <section class="panel col-main">
+      <!-- Business status card -->
+      <div class="card" id="businessCard">
+        <div class="card-head">
+          <h2>Business Status</h2>
+          <span class="pill" id="businessAge">—</span>
+        </div>
+        <div class="card-body business-body">
+          <div class="business-summary" id="businessSummary"></div>
+          <div class="checklist" id="checklist"></div>
+          <div class="checklist-add">
+            <input type="text" id="newCheckItem" placeholder="Add checklist item…" />
+            <button class="btn btn-small" id="addCheckItem">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Online & Government Profiles -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Online &amp; Government Profiles</h2>
+        </div>
+        <div class="card-body">
+          <div class="card-subhead"><h3>Platform Accounts</h3></div>
+          <div class="profile-list" id="platformList"></div>
+
+          <div class="card-subhead-row">
+            <h3>SAM.gov Registration</h3>
+            <button class="btn btn-small" id="editSamBtn">Edit SAM.gov</button>
+          </div>
+          <div id="samInfo"></div>
+
+          <div class="card-subhead-row">
+            <h3>SBA Certifications</h3>
+            <button class="btn btn-small" id="addSbaCertBtn">+ Cert</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Certification</th>
+                  <th>Status</th>
+                  <th>Cert Date</th>
+                  <th>Expires</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="sbaCertBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Net 30 accounts -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Net 30 Accounts</h2>
+          <button class="btn btn-small" id="addNet30Btn">+ Vendor</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Vendor</th>
+                  <th>Status</th>
+                  <th>Credit Limit</th>
+                  <th>Balance</th>
+                  <th>Reports To</th>
+                  <th>Opened</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="net30Body"></tbody>
+            </table>
+          </div>
+          <div class="mini-legend">
+            <span class="chip chip-green">Approved</span>
+            <span class="chip chip-yellow">Pending</span>
+            <span class="chip chip-red">Denied</span>
+            <span class="chip chip-gray">Closed</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Banking -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Banking</h2>
+          <button class="btn btn-small" id="addBankBtn">+ Account</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Institution</th>
+                  <th>Account</th>
+                  <th>Type</th>
+                  <th>Balance</th>
+                  <th>Available Credit</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="bankBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- API Configurations -->
+      <div class="card">
+        <div class="card-head">
+          <h2>API Configurations</h2>
+          <button class="btn btn-small" id="addApiConfigBtn">+ Config</button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Service</th>
+                  <th>Key (masked)</th>
+                  <th>Environment</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="apiConfigBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Credit monitoring -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Credit Monitoring</h2>
+          <button class="btn btn-small" id="editCreditBtn">Update Scores</button>
+        </div>
+        <div class="card-body">
+          <div class="credit-grid" id="creditGrid"></div>
+          <div class="card-subhead">
+            <h3>History</h3>
+          </div>
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Bureau</th>
+                  <th>Score</th>
+                  <th>Change</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="creditHistoryBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right column: activity + reminders -->
+    <aside class="panel col-side">
+      <div class="card">
+        <div class="card-head">
+          <h2>Activity Monitor</h2>
+          <button class="btn btn-small" id="clearActivityBtn">Clear</button>
+        </div>
+        <div class="card-body">
+          <ul class="activity" id="activityList"></ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Upcoming</h2>
+          <button class="btn btn-small" id="addReminderBtn">+ Reminder</button>
+        </div>
+        <div class="card-body">
+          <ul class="reminders" id="reminderList"></ul>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Modal: add business -->
+  <div class="modal" id="modalBusiness" hidden>
+    <div class="modal-card">
+      <h2>Add Business</h2>
+      <label>Legal Name <input id="bName" type="text" placeholder="Acme LLC" /></label>
+      <label>Entity Type
+        <select id="bType">
+          <option>LLC</option>
+          <option>C-Corp</option>
+          <option>S-Corp</option>
+          <option>Sole Prop</option>
+          <option>Partnership</option>
+        </select>
+      </label>
+      <label>Industry <input id="bIndustry" type="text" placeholder="Consulting" /></label>
+      <label>EIN <input id="bEin" type="text" placeholder="12-3456789" /></label>
+      <label>Formed On <input id="bFormed" type="date" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="bSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: net 30 -->
+  <div class="modal" id="modalNet30" hidden>
+    <div class="modal-card">
+      <h2 id="net30Title">Add Net 30 Vendor</h2>
+      <label>Vendor <input id="n30Vendor" type="text" placeholder="Uline" /></label>
+      <label>Status
+        <select id="n30Status">
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="denied">Denied</option>
+          <option value="closed">Closed</option>
+        </select>
+      </label>
+      <label>Credit Limit <input id="n30Limit" type="number" step="1" placeholder="1000" /></label>
+      <label>Balance <input id="n30Balance" type="number" step="1" placeholder="0" /></label>
+      <label>Reports To
+        <div class="checkline">
+          <label class="inline"><input type="checkbox" id="n30rDB" /> D&amp;B</label>
+          <label class="inline"><input type="checkbox" id="n30rEXP" /> Experian</label>
+          <label class="inline"><input type="checkbox" id="n30rEQ" /> Equifax</label>
+        </div>
+      </label>
+      <label>Opened <input id="n30Opened" type="date" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="n30Save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: bank -->
+  <div class="modal" id="modalBank" hidden>
+    <div class="modal-card">
+      <h2 id="bankTitle">Add Bank Account</h2>
+      <label>Institution <input id="bkInst" type="text" placeholder="Chase" /></label>
+      <label>Account Nickname <input id="bkAcct" type="text" placeholder="Business Checking" /></label>
+      <label>Type
+        <select id="bkType">
+          <option value="checking">Checking</option>
+          <option value="savings">Savings</option>
+          <option value="credit">Credit Card</option>
+          <option value="loc">Line of Credit</option>
+          <option value="loan">Loan</option>
+        </select>
+      </label>
+      <label>Balance <input id="bkBalance" type="number" step="0.01" placeholder="0" /></label>
+      <label>Available Credit <input id="bkAvail" type="number" step="0.01" placeholder="0" /></label>
+      <label>Status
+        <select id="bkStatus">
+          <option value="active">Active</option>
+          <option value="pending">Pending</option>
+          <option value="frozen">Frozen</option>
+          <option value="closed">Closed</option>
+        </select>
+      </label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="bkSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: credit scores -->
+  <div class="modal" id="modalCredit" hidden>
+    <div class="modal-card">
+      <h2>Update Credit Scores</h2>
+      <label>Dun &amp; Bradstreet PAYDEX (0–100) <input id="crDB" type="number" min="0" max="100" /></label>
+      <label>Experian Intelliscore (0–100) <input id="crEXP" type="number" min="0" max="100" /></label>
+      <label>Equifax Business (0–100) <input id="crEQ" type="number" min="0" max="100" /></label>
+      <label>FICO SBSS (0–300) <input id="crFICO" type="number" min="0" max="300" /></label>
+      <label>Date <input id="crDate" type="date" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="crSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: reminder -->
+  <div class="modal" id="modalReminder" hidden>
+    <div class="modal-card">
+      <h2>Add Reminder</h2>
+      <label>Title <input id="rmTitle" type="text" placeholder="File annual report" /></label>
+      <label>Due Date <input id="rmDate" type="date" /></label>
+      <label>Category
+        <select id="rmCat">
+          <option>Filing</option>
+          <option>Payment</option>
+          <option>Renewal</option>
+          <option>Follow-up</option>
+          <option>Other</option>
+        </select>
+      </label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="rmSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: platform account (Stripe / Yelp / Google Business) -->
+  <div class="modal" id="modalPlatformAcct" hidden>
+    <div class="modal-card">
+      <h2 id="platModalTitle">Edit Platform Account</h2>
+      <label id="platIdLabel">Account ID
+        <input id="platId" type="text" placeholder="" />
+      </label>
+      <label id="platUrlLabel">URL
+        <input id="platUrl" type="url" placeholder="https://" />
+      </label>
+      <label>Status
+        <select id="platStatus"></select>
+      </label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="platSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: SAM.gov -->
+  <div class="modal" id="modalSam" hidden>
+    <div class="modal-card">
+      <h2>SAM.gov Registration</h2>
+      <label>Unique Entity ID (UEI) <input id="samUei" type="text" placeholder="ABC123DEF456" maxlength="12" /></label>
+      <label>CAGE Code <span class="muted-label">(optional)</span> <input id="samCage" type="text" placeholder="1ABC2" maxlength="5" /></label>
+      <label>Status
+        <select id="samStatus">
+          <option value="not_registered">Not Registered</option>
+          <option value="pending">Pending</option>
+          <option value="active">Active</option>
+          <option value="expired">Expired</option>
+        </select>
+      </label>
+      <label>Expiration Date <input id="samExpiration" type="date" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="samSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: SBA certification -->
+  <div class="modal" id="modalSbaCert" hidden>
+    <div class="modal-card">
+      <h2 id="sbaCertTitle">Add SBA Certification</h2>
+      <label>Certification Type
+        <select id="sbaCertType">
+          <option value="8a">8(a) Business Development</option>
+          <option value="hubzone">HUBZone</option>
+          <option value="wosb">WOSB (Women-Owned Small Business)</option>
+          <option value="edwosb">EDWOSB (Economically Disadvantaged WOSB)</option>
+          <option value="vosb">VOSB (Veteran-Owned Small Business)</option>
+          <option value="sdvosb">SDVOSB (Service-Disabled Veteran-Owned)</option>
+          <option value="dbe">DBE (Disadvantaged Business Enterprise)</option>
+          <option value="sdb">SDB (Small Disadvantaged Business)</option>
+        </select>
+      </label>
+      <label>Status
+        <select id="sbaCertStatus">
+          <option value="pending">Pending</option>
+          <option value="active">Active</option>
+          <option value="expired">Expired</option>
+          <option value="denied">Denied</option>
+        </select>
+      </label>
+      <label>Certification Date <input id="sbaCertDate" type="date" /></label>
+      <label>Expiration Date <input id="sbaCertExpiry" type="date" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="sbaCertSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: API configuration -->
+  <div class="modal" id="modalApiConfig" hidden>
+    <div class="modal-card">
+      <h2 id="apiConfigTitle">Add API Configuration</h2>
+      <label>Name <input id="apiName" type="text" placeholder="SAM.gov API Key" /></label>
+      <label>Service
+        <select id="apiService">
+          <option value="samgov">SAM.gov</option>
+          <option value="stripe">Stripe</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>API Key / Token <input id="apiKey" type="text" placeholder="Paste key here" autocomplete="off" /></label>
+      <label>Environment
+        <select id="apiEnv">
+          <option value="production">Production</option>
+          <option value="sandbox">Sandbox</option>
+          <option value="test">Test</option>
+        </select>
+      </label>
+      <label>Status
+        <select id="apiStatus">
+          <option value="not_configured">Not Configured</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="expired">Expired</option>
+        </select>
+      </label>
+      <label>Notes <input id="apiNotes" type="text" placeholder="Optional notes" /></label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="apiConfigSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: bulk CSV upload -->
+  <div class="modal" id="modalBulkUpload" hidden>
+    <div class="modal-card modal-card-wide">
+      <div class="bulk-header">
+        <h2>Bulk Upload — Classify Businesses</h2>
+        <div class="bulk-header-sub" id="bulkSubtitle">Upload a CSV file to parse, classify, and import businesses.</div>
+      </div>
+
+      <!-- Step 1: drop zone (shown before file chosen) -->
+      <div id="bulkDropZone" class="bulk-drop-zone">
+        <div class="bulk-drop-icon">📂</div>
+        <div class="bulk-drop-text">Drop a CSV file here or <label for="uploadCsvFileModal" class="bulk-drop-link">browse</label></div>
+        <div class="bulk-drop-hint">Columns detected automatically — name, type, industry, EIN, formed date, and more</div>
+        <input type="file" id="uploadCsvFileModal" accept=".csv,text/csv" hidden />
+      </div>
+
+      <!-- Step 2: classification summary + preview table (hidden until file parsed) -->
+      <div id="bulkResults" hidden>
+        <div class="bulk-stats" id="bulkStats"></div>
+
+        <div class="bulk-filter-row">
+          <label class="bulk-filter-label">Filter by class:
+            <select id="bulkFilterClass" class="bulk-filter-select">
+              <option value="">All</option>
+            </select>
+          </label>
+          <label class="bulk-filter-label">Sort by:
+            <select id="bulkSortBy" class="bulk-filter-select">
+              <option value="name">Name</option>
+              <option value="classification">Classification</option>
+              <option value="type">Entity Type</option>
+            </select>
+          </label>
+          <span class="bulk-row-count" id="bulkRowCount"></span>
+        </div>
+
+        <div class="bulk-table-wrap">
+          <table class="data" id="bulkPreviewTable">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="bulkSelectAll" title="Select / deselect all" /></th>
+                <th>Business Name</th>
+                <th>Entity Type</th>
+                <th>Industry</th>
+                <th>Classification</th>
+                <th>EIN</th>
+                <th>Formed</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="bulkPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn" id="bulkResetBtn" hidden>← Re-upload</button>
+        <button class="btn btn-primary" id="bulkImportBtn" hidden>Import Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: assistant -->
+  <div class="modal" id="modalAssistant" hidden>
+    <div class="modal-card modal-card-wide assistant-card">
+      <div class="assistant-head">
+        <h2>Assistant</h2>
+        <div class="assistant-head-actions">
+          <button class="btn btn-small" id="assistantClearBtn" title="Clear chat">Clear</button>
+          <button class="btn btn-small" data-close>Close</button>
+        </div>
+      </div>
+
+      <div class="assistant-meta" id="assistantMeta"></div>
+
+      <div class="assistant-log" id="assistantLog" aria-live="polite" aria-label="Assistant chat log"></div>
+
+      <form class="assistant-compose" id="assistantForm">
+        <input id="assistantInput" type="text" placeholder="Try: add reminder “Pay sales tax” due 2026-08-15" autocomplete="off" />
+        <button class="btn btn-primary" id="assistantSendBtn" type="submit">Send</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
