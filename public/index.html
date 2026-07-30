@@ -71,7 +71,10 @@
       <div class="card" id="businessCard">
         <div class="card-head">
           <h2>Business Status</h2>
-          <span class="pill" id="businessAge">—</span>
+          <div class="card-head-actions">
+            <button class="btn btn-small" id="editBusinessBtn">Edit</button>
+            <span class="pill" id="businessAge">—</span>
+          </div>
         </div>
         <div class="card-body business-body">
           <div class="business-summary" id="businessSummary"></div>
@@ -83,6 +86,24 @@
         </div>
       </div>
 
+      <!-- Business Verification: EIN, UEI, CAGE, SAM.gov status + attached documents -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Business Verification</h2>
+          <button class="btn btn-small" id="editVerificationBtn">Edit</button>
+        </div>
+        <div class="card-body">
+          <div class="business-summary" id="verificationSummary"></div>
+
+          <div class="card-subhead-row">
+            <h3>Verification Documents</h3>
+            <button class="btn btn-small" id="addVerificationDocBtn">+ Document</button>
+          </div>
+          <div class="verification-docs" id="verificationDocsList"></div>
+          <div class="muted-label" id="verificationStorageNote">Documents are stored locally in this browser only. Keep files small (under 2 MB) — browser storage is limited.</div>
+        </div>
+      </div>
+
       <!-- Online & Government Profiles -->
       <div class="card">
         <div class="card-head">
@@ -91,12 +112,6 @@
         <div class="card-body">
           <div class="card-subhead"><h3>Platform Accounts</h3></div>
           <div class="profile-list" id="platformList"></div>
-
-          <div class="card-subhead-row">
-            <h3>SAM.gov Registration</h3>
-            <button class="btn btn-small" id="editSamBtn">Edit SAM.gov</button>
-          </div>
-          <div id="samInfo"></div>
 
           <div class="card-subhead-row">
             <h3>SBA Certifications</h3>
@@ -258,7 +273,7 @@
   <!-- Modal: add business -->
   <div class="modal" id="modalBusiness" hidden>
     <div class="modal-card">
-      <h2>Add Business</h2>
+      <h2 id="modalBusinessTitle">Add Business</h2>
       <label>Legal Name <input id="bName" type="text" placeholder="Acme LLC" /></label>
       <label>Entity Type
         <select id="bType">
@@ -399,24 +414,48 @@
     </div>
   </div>
 
-  <!-- Modal: SAM.gov -->
-  <div class="modal" id="modalSam" hidden>
+  <!-- Modal: business verification (EIN, UEI, CAGE, SAM.gov) -->
+  <div class="modal" id="modalVerification" hidden>
     <div class="modal-card">
-      <h2>SAM.gov Registration</h2>
-      <label>Unique Entity ID (UEI) <input id="samUei" type="text" placeholder="ABC123DEF456" maxlength="12" /></label>
-      <label>CAGE Code <span class="muted-label">(optional)</span> <input id="samCage" type="text" placeholder="1ABC2" maxlength="5" /></label>
-      <label>Status
-        <select id="samStatus">
+      <h2>Business Verification</h2>
+      <label>EIN <input id="verEin" type="text" placeholder="12-3456789" /></label>
+      <label>Unique Entity ID (UEI) <input id="verUei" type="text" placeholder="ABC123DEF456" maxlength="12" /></label>
+      <label>CAGE Code <span class="muted-label">(optional)</span> <input id="verCage" type="text" placeholder="1ABC2" maxlength="5" /></label>
+      <label>SAM.gov Status
+        <select id="verStatus">
           <option value="not_registered">Not Registered</option>
-          <option value="pending">Pending</option>
+          <option value="pending">Pending / Submitted</option>
           <option value="active">Active</option>
           <option value="expired">Expired</option>
         </select>
       </label>
-      <label>Expiration Date <input id="samExpiration" type="date" /></label>
+      <label>SAM.gov Expiration Date <input id="verExpiration" type="date" /></label>
       <div class="modal-actions">
         <button class="btn" data-close>Cancel</button>
-        <button class="btn btn-primary" id="samSave">Save</button>
+        <button class="btn btn-primary" id="verSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: attach verification document -->
+  <div class="modal" id="modalVerificationDoc" hidden>
+    <div class="modal-card">
+      <h2>Attach Verification Document</h2>
+      <label>Document Type
+        <select id="vdocCategory">
+          <option value="ein_letter">IRS EIN Letter (CP 575)</option>
+          <option value="sam_registration">SAM.gov Registration</option>
+          <option value="articles">Articles of Organization</option>
+          <option value="operating_agreement">Operating Agreement</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>File <span class="muted-label">(PDF or image, under 2 MB)</span>
+        <input id="vdocFile" type="file" accept=".pdf,.png,.jpg,.jpeg" />
+      </label>
+      <div class="modal-actions">
+        <button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" id="vdocSave">Save</button>
       </div>
     </div>
   </div>

@@ -154,6 +154,10 @@
       push("low", "Compliance", "Register with SAM.gov to unlock government contracting opportunities.");
     }
 
+    if ((b.verificationDocs || []).length === 0) {
+      push("low", "Verification", "Attach verification documents (EIN letter, SAM.gov registration) to support vendor and funding applications.");
+    }
+
     const c = b.credit || {};
     if (!c.updatedAt) {
       push("medium", "Credit", "Pull baseline bureau scores (D&B, Experian, Equifax) to start tracking progress.");
@@ -182,7 +186,7 @@
 
   // ---------- State ----------
   let state = load();
-  let editing = { net30Id: null, bankId: null, platformKey: null, sbaCertId: null, apiConfigId: null };
+  let editing = { net30Id: null, bankId: null, platformKey: null, sbaCertId: null, apiConfigId: null, businessId: null, pendingDoc: null };
   let assistant = loadAssistant();
   let assemblySelectedId = null;
 
@@ -215,7 +219,12 @@
     return emptyState();
   }
   function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn("state save failed", e);
+      alert("Could not save your last change — local browser storage is full. Try removing an attached verification document (large files fill it up fastest), then try again.");
+    }
   }
   function uid() {
     const arr = new Uint32Array(2);
@@ -496,7 +505,18 @@
   }
   function fmtDate(d) {
     if (!d) return "—";
-    try { return new Date(d).toLocaleDateString(); } catch { return d; }
+    try {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d));
+      if (m) {
+        // Date-only strings (from <input type="date">) parse as UTC midnight;
+        // converting straight to a local display date can roll back a day.
+        // Build the date from local components instead.
+        return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString();
+      }
+      return new Date(d).toLocaleDateString();
+    } catch {
+      return d;
+    }
   }
   function fmtTime(ts) {
     const d = new Date(ts);
@@ -571,6 +591,7 @@
         sam: { uei: "", cageCode: "", status: "not_registered", expirationDate: null },
         sbaCerts: [],
       },
+      verificationDocs: [],
       apiConfigs: [
         { id: uid(), name: "SAM.gov API Key",       service: "samgov", apiKey: "", environment: "production", status: "not_configured", notes: "" },
         { id: uid(), name: "Stripe Secret Key",     service: "stripe", apiKey: "", environment: "test",       status: "not_configured", notes: "" },
@@ -586,6 +607,7 @@
     renderBusinessSelect();
     renderTiles();
     renderBusinessCard();
+    renderVerification();
     renderProfilesCard();
     renderNet30();
     renderBank();
@@ -756,16 +778,13 @@
   function renderProfilesCard() {
     const b = activeBusiness();
     const platformList = $("#platformList");
-    const samInfo      = $("#samInfo");
     const certBody     = $("#sbaCertBody");
 
     platformList.innerHTML = "";
-    samInfo.innerHTML      = "";
     certBody.innerHTML     = "";
 
     if (!b) {
       platformList.innerHTML = '<div class="empty-state">Add a business to manage profiles.</div>';
-      samInfo.innerHTML      = '<div class="empty-state">—</div>';
       certBody.innerHTML     = '<tr><td class="empty" colspan="5">—</td></tr>';
       return;
     }
@@ -819,25 +838,6 @@
       platformList.appendChild(row);
     });
 
-    // --- SAM.gov ---
-    const sam = b.gov.sam || {};
-    const samGrid = document.createElement("div");
-    samGrid.className = "business-summary";
-    [
-      ["UEI",        sam.uei        || "—"],
-      ["CAGE Code",  sam.cageCode   || "—"],
-      ["Status",     platformStatusLabel(sam.status || "not_registered")],
-      ["Expires",    fmtDate(sam.expirationDate)],
-    ].forEach(([k, v]) => {
-      const el = document.createElement("div");
-      el.className = "summary-item";
-      el.innerHTML = '<div class="k"></div><div class="v"></div>';
-      el.querySelector(".k").textContent = k;
-      el.querySelector(".v").textContent = v;
-      samGrid.appendChild(el);
-    });
-    samInfo.appendChild(samGrid);
-
     // --- SBA Certs ---
     const certs = b.gov.sbaCerts || [];
     if (certs.length === 0) {
@@ -867,6 +867,97 @@
         persist();
       });
       certBody.appendChild(tr);
+    });
+  }
+
+  const VERIFICATION_DOC_CATEGORY_LABEL = {
+    ein_letter: "IRS EIN Letter (CP 575)",
+    sam_registration: "SAM.gov Registration",
+    articles: "Articles of Organization",
+    operating_agreement: "Operating Agreement",
+    other: "Other",
+  };
+
+  function renderVerification() {
+    const summary = $("#verificationSummary");
+    const docsList = $("#verificationDocsList");
+    summary.innerHTML = "";
+    docsList.innerHTML = "";
+
+    const b = activeBusiness();
+    if (!b) {
+      summary.innerHTML = '<div class="empty-state">Add a business to track verification.</div>';
+      return;
+    }
+    if (!b.gov) {
+      b.gov = { sam: { uei: "", cageCode: "", status: "not_registered", expirationDate: null }, sbaCerts: [] };
+    }
+    if (!b.verificationDocs) b.verificationDocs = [];
+
+    const sam = b.gov.sam || {};
+    [
+      ["EIN", b.ein || "—"],
+      ["UEI", sam.uei || "—"],
+      ["CAGE Code", sam.cageCode || "—"],
+      ["SAM.gov Status", platformStatusLabel(sam.status || "not_registered")],
+      ["SAM.gov Expires", fmtDate(sam.expirationDate)],
+    ].forEach(([k, v]) => {
+      const el = document.createElement("div");
+      el.className = "summary-item";
+      el.innerHTML = '<div class="k"></div><div class="v"></div>';
+      el.querySelector(".k").textContent = k;
+      el.querySelector(".v").textContent = v;
+      summary.appendChild(el);
+    });
+
+    if (b.verificationDocs.length === 0) {
+      docsList.innerHTML = '<div class="empty-state">No verification documents attached yet.</div>';
+      return;
+    }
+
+    b.verificationDocs.slice().sort((a, z) => z.uploadedAt - a.uploadedAt).forEach((doc) => {
+      const row = document.createElement("div");
+      row.className = "vdoc-item";
+
+      const meta = document.createElement("div");
+      meta.className = "vdoc-meta";
+      const cat = document.createElement("span");
+      cat.className = "chip chip-blue";
+      cat.textContent = VERIFICATION_DOC_CATEGORY_LABEL[doc.category] || doc.category;
+      const name = document.createElement("span");
+      name.className = "vdoc-name";
+      name.textContent = doc.name;
+      const info = document.createElement("span");
+      info.className = "vdoc-info";
+      info.textContent = Math.max(1, Math.round(doc.size / 1024)) + " KB · " + fmtDate(doc.uploadedAt);
+      meta.appendChild(cat);
+      meta.appendChild(name);
+      meta.appendChild(info);
+
+      const actions = document.createElement("div");
+      actions.className = "vdoc-actions";
+      const viewLink = document.createElement("a");
+      viewLink.className = "btn btn-small";
+      viewLink.textContent = "View";
+      viewLink.href = doc.dataUrl;
+      viewLink.target = "_blank";
+      viewLink.rel = "noopener";
+      viewLink.download = doc.name;
+      const delBtn = document.createElement("button");
+      delBtn.className = "btn btn-danger";
+      delBtn.textContent = "×";
+      delBtn.addEventListener("click", () => {
+        if (!confirm('Remove document "' + doc.name + '"?')) return;
+        b.verificationDocs = b.verificationDocs.filter((d) => d.id !== doc.id);
+        log("biz", "Removed verification document " + doc.name);
+        persist();
+      });
+      actions.appendChild(viewLink);
+      actions.appendChild(delBtn);
+
+      row.appendChild(meta);
+      row.appendChild(actions);
+      docsList.appendChild(row);
     });
   }
 
@@ -1419,6 +1510,8 @@
 
   // Add business
   $("#addBusinessBtn").addEventListener("click", () => {
+    editing.businessId = null;
+    $("#modalBusinessTitle").textContent = "Add Business";
     $("#bName").value = "";
     $("#bType").value = "LLC";
     $("#bIndustry").value = "";
@@ -1427,19 +1520,43 @@
     openModal("modalBusiness");
     setTimeout(() => $("#bName").focus(), 0);
   });
+
+  // Edit business
+  $("#editBusinessBtn").addEventListener("click", () => {
+    const b = activeBusiness();
+    if (!b) { alert("Add a business first."); return; }
+    editing.businessId = b.id;
+    $("#modalBusinessTitle").textContent = "Edit Business";
+    $("#bName").value = b.name || "";
+    $("#bType").value = b.type || "LLC";
+    $("#bIndustry").value = b.industry || "";
+    $("#bEin").value = b.ein || "";
+    $("#bFormed").value = b.formed || "";
+    openModal("modalBusiness");
+    setTimeout(() => $("#bName").focus(), 0);
+  });
+
   $("#bSave").addEventListener("click", () => {
     const name = $("#bName").value.trim();
     if (!name) { $("#bName").focus(); return; }
-    const b = seedBusiness(
-      name,
-      $("#bType").value,
-      $("#bIndustry").value.trim(),
-      $("#bEin").value.trim(),
-      $("#bFormed").value || null,
-    );
-    state.businesses.push(b);
-    state.activeId = b.id;
-    log("biz", "Added business " + b.name);
+    const type = $("#bType").value;
+    const industry = $("#bIndustry").value.trim();
+    const ein = $("#bEin").value.trim();
+    const formed = $("#bFormed").value || null;
+
+    if (editing.businessId) {
+      const b = state.businesses.find((x) => x.id === editing.businessId);
+      if (b) {
+        Object.assign(b, { name, type, industry, ein, formed });
+        log("biz", "Updated business details for " + name);
+      }
+      editing.businessId = null;
+    } else {
+      const b = seedBusiness(name, type, industry, ein, formed);
+      state.businesses.push(b);
+      state.activeId = b.id;
+      log("biz", "Added business " + b.name);
+    }
     closeModal("modalBusiness");
     persist();
   });
@@ -1680,31 +1797,77 @@
     persist();
   });
 
-  // SAM.gov
-  $("#editSamBtn").addEventListener("click", () => {
+  // Business Verification (EIN, UEI, CAGE, SAM.gov status)
+  $("#editVerificationBtn").addEventListener("click", () => {
     const b = activeBusiness();
     if (!b) { alert("Add a business first."); return; }
     if (!b.gov) b.gov = { sam: { uei: "", cageCode: "", status: "not_registered", expirationDate: null }, sbaCerts: [] };
     const sam = b.gov.sam || {};
-    $("#samUei").value        = sam.uei          || "";
-    $("#samCage").value       = sam.cageCode      || "";
-    $("#samStatus").value     = sam.status        || "not_registered";
-    $("#samExpiration").value = sam.expirationDate || "";
-    openModal("modalSam");
-    setTimeout(() => $("#samUei").focus(), 0);
+    $("#verEin").value        = b.ein || "";
+    $("#verUei").value        = sam.uei          || "";
+    $("#verCage").value       = sam.cageCode      || "";
+    $("#verStatus").value     = sam.status        || "not_registered";
+    $("#verExpiration").value = sam.expirationDate || "";
+    openModal("modalVerification");
+    setTimeout(() => $("#verEin").focus(), 0);
   });
-  $("#samSave").addEventListener("click", () => {
+  $("#verSave").addEventListener("click", () => {
     const b = activeBusiness();
     if (!b) return;
     if (!b.gov) b.gov = { sam: {}, sbaCerts: [] };
+    b.ein = $("#verEin").value.trim();
     b.gov.sam = {
-      uei:            $("#samUei").value.trim().toUpperCase(),
-      cageCode:       $("#samCage").value.trim().toUpperCase(),
-      status:         $("#samStatus").value,
-      expirationDate: $("#samExpiration").value || null,
+      uei:            $("#verUei").value.trim().toUpperCase(),
+      cageCode:       $("#verCage").value.trim().toUpperCase(),
+      status:         $("#verStatus").value,
+      expirationDate: $("#verExpiration").value || null,
     };
-    log("biz", "Updated SAM.gov registration → " + platformStatusLabel(b.gov.sam.status));
-    closeModal("modalSam");
+    log("biz", "Updated business verification details → SAM.gov " + platformStatusLabel(b.gov.sam.status));
+    closeModal("modalVerification");
+    persist();
+  });
+
+  // Verification documents
+  const MAX_VERIFICATION_DOC_BYTES = 2 * 1024 * 1024; // browser localStorage totals ~5-10MB across the whole dashboard
+  $("#addVerificationDocBtn").addEventListener("click", () => {
+    if (!activeBusiness()) { alert("Add a business first."); return; }
+    editing.pendingDoc = null;
+    $("#vdocCategory").value = "ein_letter";
+    $("#vdocFile").value = "";
+    openModal("modalVerificationDoc");
+  });
+  $("#vdocFile").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    editing.pendingDoc = null;
+    if (!file) return;
+    if (file.size > MAX_VERIFICATION_DOC_BYTES) {
+      alert("That file is " + Math.round(file.size / 1024) + "KB — max is 2MB per document since files are stored in this browser's local storage.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      editing.pendingDoc = {
+        name: file.name,
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+        dataUrl: reader.result,
+      };
+    };
+    reader.readAsDataURL(file);
+  });
+  $("#vdocSave").addEventListener("click", () => {
+    const b = activeBusiness();
+    if (!b) return;
+    if (!editing.pendingDoc) { alert("Choose a file first."); return; }
+    if (!b.verificationDocs) b.verificationDocs = [];
+    b.verificationDocs.push(Object.assign(
+      { id: uid(), category: $("#vdocCategory").value, uploadedAt: Date.now() },
+      editing.pendingDoc
+    ));
+    log("biz", "Attached verification document: " + editing.pendingDoc.name);
+    editing.pendingDoc = null;
+    closeModal("modalVerificationDoc");
     persist();
   });
 

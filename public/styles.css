@@ -145,6 +145,7 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0;
   background: var(--bg-elev-2);
 }
 .card-head h2 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+.card-head-actions { display: flex; align-items: center; gap: 8px; }
 .card-body { padding: 14px 16px; }
 .card-subhead { margin: 14px 0 6px; }
 .card-subhead h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
@@ -652,4 +653,22 @@ tr.bulk-duplicate td:last-child .chip { font-size: 10px; }
 @media (max-width: 900px) {
   .station-arrow { display: none; }
 }
+
+/* ---- Business Verification ---- */
+.verification-docs { display: flex; flex-direction: column; gap: 8px; }
+.vdoc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.vdoc-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.vdoc-name { font-size: 13px; font-weight: 600; }
+.vdoc-info { font-size: 11px; color: var(--muted); }
+.vdoc-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
