@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Business Growth Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">📊</span>
+      <h1>Business Growth Dashboard</h1>
+      <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+    </div>
+    <div class="topbar-actions">
+      <button id="add-business-btn" class="btn btn-primary">+ Add Business</button>
+    </div>
+  </header>
+
+  <section class="summary" id="summary">
+    <div class="summary-card">
+      <div class="summary-value" id="stat-businesses">0</div>
+      <div class="summary-label">Businesses</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-value" id="stat-tasks">0 / 0</div>
+      <div class="summary-label">Tasks Completed</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-value" id="stat-credit">0</div>
+      <div class="summary-label">Avg Credit Score</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-value" id="stat-activities">0</div>
+      <div class="summary-label">Activities Logged</div>
+    </div>
+  </section>
+
+  <main class="board" id="board">
+    <!-- Business folders render here -->
+  </main>
+
+  <section class="activity-panel">
+    <h2>📋 Activity Monitor</h2>
+    <ul id="activity-feed" class="activity-feed"></ul>
+  </section>
+
+  <!-- Add Business Modal -->
+  <div class="modal-overlay hidden" id="business-modal" role="dialog" aria-modal="true" aria-labelledby="business-modal-title">
+    <div class="modal">
+      <h2 id="business-modal-title">Add Business</h2>
+      <label>Business Name
+        <input type="text" id="business-name-input" placeholder="e.g. Acme LLC" />
+      </label>
+      <div class="modal-actions">
+        <button class="btn" id="cancel-business-btn">Cancel</button>
+        <button class="btn btn-primary" id="save-business-btn">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
