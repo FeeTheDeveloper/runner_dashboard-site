@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Runner Dashboard</title>
+</head>
+<body>
+  <div style="font:14px/1.5 system-ui,sans-serif;padding:24px">Loading Runner Dashboard…</div>
+  <script>
+    (async function () {
+      try {
+        const res = await fetch('/index.html', { cache: 'no-store' });
+        if (!res.ok) throw new Error('Could not load dashboard shell (' + res.status + ')');
+        let html = await res.text();
+        html = html.replace(
+          /<script\s+src=["']app\.js["']><\/script>/i,
+          '<script src="/cloud-sync.js"><\/script>'
+        );
+        document.open();
+        document.write(html);
+        document.close();
+      } catch (err) {
+        document.body.innerHTML = '<pre style="padding:24px;white-space:pre-wrap">Runner bootstrap failed: ' + String(err && err.message ? err.message : err) + '</pre>';
+      }
+    })();
+  </script>
+</body>
+</html>
