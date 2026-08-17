@@ -9,7 +9,7 @@
     },
     {
       "source": "/",
-      "destination": "/public/index.html"
+      "destination": "/public/cloud.html"
     },
     {
       "source": "/(.*)",
