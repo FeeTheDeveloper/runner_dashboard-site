@@ -1,185 +1,92 @@
-# Business Status Dashboard
+# Runner Dashboard
 
-A static, single-page dashboard for tracking multiple businesses and their key growth activities: **Net 30 accounts**, **banking**, and **credit monitoring**. No build step is required, and the repo is configured for direct deployment to Cloudflare Workers (static assets).
+Runner Dashboard is a single-page operations dashboard for managing multiple businesses, compliance, vendor credit, banking, reminders, and activity history.
 
-## Features
+Production deployment target is **Vercel** with **Supabase** cloud synchronization.
 
-- **Assembly Line** — every business is auto-sorted into a pipeline station (Intake → Foundation Build → Mix Builder → Scaling) based on its checklist, tradelines, and PAYDEX score. Click a business in the line to see its prioritized next-step recommendations (High/Med/Low), computed by a set of read-only "agent" rules covering foundation setup, banking, compliance deadlines, credit refresh, and tier-appropriate vendor matches. Recommendations only — nothing is submitted or sent anywhere automatically.
-- **Business roster** — add multiple businesses (LLC / C-Corp / S-Corp / etc.), switch between them from the header selector, and edit their core details (name, entity type, industry, EIN, formation date) at any time.
-- **Business status checklist** — every new business is seeded with the standard setup checklist (EIN, DUNS, business address, bank account, listings, etc.). Add or remove items freely; checked items get a green check.
-- **Business Verification** — one place for EIN, SAM.gov UEI/CAGE code/registration status/expiration, and attached verification documents (IRS EIN letter, SAM.gov registration, articles of organization, operating agreement). Documents are stored locally as files (base64 in `localStorage`) — keep them under 2 MB each, since total browser storage is limited to roughly 5–10 MB across the whole dashboard.
-- **Net 30 accounts** — track vendor name, status (approved / pending / denied / closed), credit limit, balance, opened date, and which bureaus each vendor reports to (D&B, Experian, Equifax).
-- **Banking** — track institutions, account nicknames, type (checking / savings / credit card / LOC / loan), balance, available credit, and status.
-- **Credit monitoring** — per-business scores for **D&B PAYDEX**, **Experian Intelliscore**, **Equifax Business**, and **FICO SBSS**, with color-coded progress bars and a history log showing per-bureau change (▲ / ▼).
-- **Activity monitor** — timestamped feed of every action (task toggled, vendor added, score updated, etc.).
-- **Upcoming reminders** — track filing deadlines, payments, renewals; overdue / due-soon items are highlighted.
-- **Overview tiles** — total businesses, total Net 30 accounts (with approved count), average bureau score across the portfolio, total cash + available credit.
-- **Persistence & live sync** — state lives in `localStorage` under the `business-dashboard-v2` key; multiple tabs stay in sync via the `storage` event.
-- **Export / Import** — one-click JSON backup and restore.
+## Runtime architecture
+
+Browser (`/`)  
+→ Vercel static app (`public/index.html`, `public/app.js`, `public/cloud-sync.js`, `public/styles.css`)  
+→ Vercel API route (`/api/runner-sync`)  
+→ Supabase Edge Function (`runner-sync`)  
+→ Supabase PostgreSQL
 
 ## Local development
 
-Install dependencies and serve the site locally:
+1. Install dependencies:
 
 ```sh
 npm install
+```
+
+2. Create local env:
+
+```sh
+cp .env.example .env.local
+```
+
+3. Fill `.env.local` with real values (never commit secrets).
+
+4. Start local dashboard quickly (static):
+
+```sh
 npm run dev
-# then open http://127.0.0.1:8000
 ```
 
-You can also preview the site with Cloudflare Pages locally:
+Then open `http://127.0.0.1:8000`.
+
+5. For full Vercel + `/api` local behavior, run:
 
 ```sh
-npm run cf:dev
+npm run dev:vercel
 ```
 
-You can preview the site with Vercel locally:
+## Required environment variables
 
-```sh
-npm run vercel:dev
-```
-
-## GitHub Agent API token setup
-
-Never commit personal access tokens to this repository.
-
-If a token was pasted into chat, logs, or code, revoke it immediately and create a replacement token with minimum required scopes.
-
-### Token setup in local development
-
-1. Copy `.env.example` to `.env` (or `.dev.vars` for Wrangler local secrets).
-2. Set `GITHUB_AGENT_API_TOKEN` to your new token value.
-
-### GitHub Actions
-
-Set a repository secret named `GITHUB_AGENT_API_TOKEN`.
-
-### Cloudflare secret
-
-If you need the token in a Worker runtime, store it as a Wrangler secret:
-
-```sh
-npx wrangler secret put GITHUB_AGENT_API_TOKEN
-```
-
-1. Start with an empty dashboard, then click **+ Business** and fill in the details.
-2. Toggle checklist items as you complete each setup step.
-3. Add Net 30 vendors, bank accounts, and credit scores as they come in.
-4. Add reminders for upcoming filings or payments.
-5. Watch the activity feed on the right for a running log of what changed.
-
-## Cloudflare deployment
-
-This repo is configured as a Cloudflare Worker serving static assets from `public/` (see `wrangler.jsonc`).
-
-### Automatic Vercel deploys (GitHub Actions)
-
-Every push to `main` runs `.github/workflows/deploy.yml`:
-
-- **With repo secrets** `CLOUDFLARE_API_TOKEN` (permission: *Workers Scripts — Edit*) and `CLOUDFLARE_ACCOUNT_ID` set, the site deploys straight to your Cloudflare account.
-- **Without secrets**, wrangler deploys to a temporary preview account (`wrangler deploy --temporary`) that stays live for 60 minutes. The deploy output — including the one-time **claim URL** that moves the deployment into your own Cloudflare account permanently — is uploaded as the `deployment-urls` workflow artifact rather than printed in the public log.
-
-### Deploy from the CLI
-
-```sh
-npm install
-npx wrangler login
-npm run cf:deploy
-```
-
-## Vercel deployment
-
-This repo includes a `vercel.json` file that serves the static app from `public/`.
-
-### Environment variables
-
-Local:
-
-1. Copy `.env.example` to `.env.local`.
-2. Set real values (do not commit secrets).
-
-Vercel project:
-
-1. Connect this folder to the correct Vercel project:
-
-```sh
-npm run vercel:link
-```
-
-2. Pull the project’s remote env vars into `.env.local` (after you’ve set them in the Vercel dashboard or via `vercel env add`):
-
-```sh
-npm run vercel:env:pull
-```
-
-### Supabase auth (server)
-
-This repo includes an Edge Function at:
-
-- `/api/whoami`
-- `/api/supabase`
-
-It expects:
+Set these in Vercel Project Settings → Environment Variables:
 
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
-- (optional) `SUPABASE_JWKS_URL` (defaults to `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`)
+- `SUPABASE_JWKS_URL` (optional but recommended)
+- `SUPABASE_SECRET_KEY` (server-only)
+- `RUNNER_SYNC_ACCESS_KEY` (server-only, if your runner-sync function expects it)
+- `RUNNER_SYNC_URL` (optional override; defaults to `${SUPABASE_URL}/functions/v1/runner-sync`)
+- `GITHUB_AGENT_API_TOKEN` (optional, for assistant GitHub commands)
 
-`/api/supabase` supports `POST` operations like `{ "op": "whoami" }` and basic `select`/`upsert` (user-auth required).
+## Cloud sync behavior
 
-### GitHub agent endpoint (server)
+- On startup, the dashboard attempts cloud hydration from `runner-sync`.
+- Cloud data wins initial hydration when available.
+- Local storage remains as offline cache/resilience.
+- User edits update UI immediately, then cloud saves are debounced.
+- Status chip in header reports:
+  - `Cloud Connecting...`
+  - `Runner Cloud Connected`
+  - `Syncing...`
+  - `Cloud Save Failed`
+  - `Cloud Offline - Local Cache Active`
 
-This repo includes an Edge Function proxy at:
+## Entry points
 
-- `/api/github`
+- `/` → Runner Dashboard UI (served from `public/index.html`)
+- `/styles.css` → styles
+- `/cloud-sync.js` → cloud sync client
+- `/app.js` → dashboard app
+- `/api/*` → Vercel API routes
 
-It requires `GITHUB_AGENT_API_TOKEN` to be set in Vercel env vars (server-only). The UI assistant can use it to fetch your GitHub user (`github me`) or create an issue (`github issue owner/repo "Title" "Body"`).
+## Build and deploy
 
-### Vercel API path
-
-Use this base path for same-origin API calls:
-
-- `/api`
-
-If you need an absolute URL (external client or webhook target), use:
-
-- `https://<your-vercel-domain>/api`
-
-### Automatic deploys (GitHub Actions)
-
-Every push to `main` (production) and pull request to `main` (preview) runs `.github/workflows/vercel-deploy.yml`.
-
-Set these repository secrets before enabling automated deploys:
-
-- `VERCEL_TOKEN`
-- `VERCEL_ORG_ID`
-- `VERCEL_PROJECT_ID`
-
-### One-time setup
+Build production output:
 
 ```sh
-npm install
-npx vercel login
-npx vercel link
+npm run build
 ```
 
-### Deploy preview
+Deploy to production from CLI:
 
 ```sh
-npm run vercel:build
-npx vercel deploy
+npm run deploy
 ```
 
-### Deploy production
-
-```sh
-npm run vercel:deploy
-```
-
-## Files
-
-- `public/index.html` — layout, tiles, cards, and modals
-- `public/styles.css` — dark dashboard theme
-- `public/app.js` — all state, rendering, and persistence logic
-- `wrangler.jsonc` — Cloudflare Workers static assets configuration
-- `.github/workflows/deploy.yml` — CI deployment workflow
+Or import this repository into a new Vercel project and deploy via Git integration.

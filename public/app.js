@@ -189,6 +189,27 @@
   let editing = { net30Id: null, bankId: null, platformKey: null, sbaCertId: null, apiConfigId: null, businessId: null, pendingDoc: null };
   let assistant = loadAssistant();
   let assemblySelectedId = null;
+  const cloudSync = window.RunnerCloudSync || null;
+  let cloudHydrating = false;
+  let cloudReady = false;
+  let cloudSaving = false;
+
+  function setCloudStatus(statusKey, text) {
+    const statusEl = $("#cloudStatus");
+    if (!statusEl) return;
+    statusEl.textContent = text;
+    statusEl.className = "pill cloud-status cloud-status-" + statusKey;
+  }
+
+  window.addEventListener("runner-cloud-status", (e) => {
+    const detail = e.detail || {};
+    const key = String(detail.key || "offline");
+    const text = String(detail.text || "Cloud Offline - Local Cache Active");
+    cloudHydrating = key === "connecting";
+    cloudReady = key === "connected" || key === "syncing";
+    cloudSaving = key === "syncing";
+    setCloudStatus(key, text);
+  });
 
   function loadAssistant() {
     try {
@@ -1487,6 +1508,7 @@
   function persist() {
     save();
     render();
+    if (cloudSync && !cloudHydrating && cloudReady) cloudSync.queueSave(state);
   }
 
   // ---------- Modals ----------
@@ -2364,13 +2386,40 @@
     }
   });
 
-  // First-run bootstrap
-  if (state.businesses.length === 0) {
-    log("biz", "Dashboard initialized. Click + Business to begin.");
+  async function initializeCloudState() {
+    if (!cloudSync || typeof cloudSync.hydrate !== "function") {
+      setCloudStatus("offline", "Cloud Offline - Local Cache Active");
+      return;
+    }
+
+    cloudHydrating = true;
+    try {
+      const result = await cloudSync.hydrate(state);
+      if (result && result.state && Array.isArray(result.state.businesses)) {
+        state = result.state;
+      }
+    } catch (err) {
+      console.warn("cloud hydration failed", err);
+    } finally {
+      cloudHydrating = false;
+      const flags = typeof cloudSync.flags === "function" ? cloudSync.flags() : {};
+      cloudReady = Boolean(flags.cloudReady);
+      cloudSaving = Boolean(flags.cloudSaving);
+    }
   }
-  if (!state.activeId && state.businesses[0]) state.activeId = state.businesses[0].id;
-  save();
-  render();
-  bindAssistantUi();
-  renderAssistant();
+
+  async function bootstrap() {
+    bindAssistantUi();
+    renderAssistant();
+    await initializeCloudState();
+
+    if (state.businesses.length === 0) {
+      log("biz", "Dashboard initialized. Click + Business to begin.");
+    }
+    if (!state.activeId && state.businesses[0]) state.activeId = state.businesses[0].id;
+    save();
+    render();
+  }
+
+  bootstrap();
 })();

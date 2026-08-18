@@ -4,5 +4,8 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+.env.local
+.vercel/
 .dev.vars
+.DS_Store
 deploy-output.txt

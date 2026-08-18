@@ -2,9 +2,12 @@
   "name": "runner-dashboard-site",
   "private": true,
   "version": "1.0.0",
-  "description": "Static dashboard site configured for Cloudflare Workers static assets.",
+  "description": "Runner Dashboard static app with Vercel API routes and Supabase sync.",
   "scripts": {
     "dev": "http-server -p 8000 public",
+    "dev:vercel": "vercel dev",
+    "build": "vercel build",
+    "deploy": "vercel --prod",
     "vercel:link": "vercel link",
     "vercel:env:pull": "vercel env pull .env.local",
     "vercel:dev": "vercel dev",
