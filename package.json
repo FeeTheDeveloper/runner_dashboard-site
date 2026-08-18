@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "http-server -p 8000 public",
     "dev:vercel": "vercel dev",
-    "build": "vercel build",
+    "build": "echo 'Static site - no build step required'",
     "deploy": "vercel --prod",
     "vercel:link": "vercel link",
     "vercel:env:pull": "vercel env pull .env.local",
